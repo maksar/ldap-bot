@@ -1,0 +1,61 @@
+library:
+  source-dirs: src
+  ghc-options:
+  - -Wall
+tests:
+  ldabot-test:
+    source-dirs: test
+    main: Spec.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ldabot
+    - hspec
+    - validity
+    - validity-text
+    - genvalidity
+    - genvalidity-text
+    - genvalidity-hspec
+copyright: 2020 Alexander Shestakov
+maintainer: a.shestakov@itransition.com
+dependencies:
+- either
+- vector
+- base >= 4.7 && < 5
+- ldap-client
+- text-ldap
+- aeson
+- text
+- bytestring
+- http-client
+- http-client-tls
+- servant-server
+- servant-client
+- wai-logger
+- warp
+- pretty-simple
+- semigroupoids
+- transformers
+- smuggler
+- wai-extra
+- mtl
+name: ldabot
+version: 0.1.0.0
+extra-source-files:
+- README.md
+- ChangeLog.md
+author: Alexander Shestakov
+license: BSD3
+executables:
+  ldabot-exe:
+    source-dirs: app
+    main: Main.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall
+    dependencies:
+    - ldabot
