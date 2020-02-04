@@ -9,13 +9,13 @@ import           Client.Model               ( Base (Base), GetUserInfoMessageRes
                                               SendTextMessageRequest (SendTextMessageRequest), first_name, last_name )
 import           Control.Monad.Error.Class  ( liftEither )
 import           Control.Monad.IO.Class     ( liftIO )
+import qualified Data.ByteString.Lazy.Char8 as BS ( pack )
 import           Data.Either.Combinators    ( mapLeft )
 import           Data.Text                  ( Text, pack )
 import           Network.HTTP.Client        ( newManager )
 import           Network.HTTP.Client.TLS    ( tlsManagerSettings )
 import           SendAPI                    ( getUserInfo, sendTextMessage )
 import           Servant                    ( Handler, ServerError, err500, errBody )
-import qualified Data.ByteString.Lazy.Char8 as BS ( pack )
 import           Server.Command
 import           Server.LDAP
 import           Server.Model               ( Message (Message, sender_id, text), Messages (Messages) )

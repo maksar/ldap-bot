@@ -50,6 +50,3 @@ spec = do
                      Messages
                  )
       `shouldBe` Right message
-    -- it "roundtrips properly"
-    --   $          (eitherDecode $ encode message :: Either String Root)
-    --   `shouldBe` Right message

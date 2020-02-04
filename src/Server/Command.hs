@@ -4,7 +4,6 @@ module Server.Command where
 
 import           Control.Monad.Trans.Except ( ExceptT, throwE )
 import           Data.ByteString.Char8      ( ByteString, pack )
-import           Debug.Trace                ( traceShowId )
 import           Ldap.Client                ( Attr (Attr), SearchEntry (SearchEntry) )
 
 newtype Account = Account String deriving (Eq, Show, Read)
@@ -50,7 +49,7 @@ groupKnowledgeFromEntries (Account account) entries
     groupKnowledgeFromEntry (SearchEntry _dn attrList) =
       let managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
           members = extract [Attr "member"]
-          isManager = elem (pack $ account) managers
+          isManager = elem (pack account) managers
           isMember = elem (pack account) members
       in case (isManager, isMember) of
         (True, _)     -> Owner

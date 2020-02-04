@@ -43,9 +43,6 @@ dependencies:
 - mtl
 name: ldabot
 version: 0.1.0.0
-extra-source-files:
-- README.md
-- ChangeLog.md
 author: Alexander Shestakov
 license: BSD3
 executables:
