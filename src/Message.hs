@@ -6,8 +6,9 @@ module Message where
 
 import           Client.Model               ( Base (Base), GetUserInfoMessageResponse (GetUserInfoMessageResponse),
                                               SendTextMessage (SendTextMessage),
-                                              SendTextMessageRequest (SendTextMessageRequest), first_name, last_name )
+                                              SendTextMessageRequest (SendTextMessageRequest), email )
 import           Control.Monad.Error.Class  ( liftEither )
+import           Control.Monad.Except       ( runExceptT )
 import           Control.Monad.IO.Class     ( liftIO )
 import qualified Data.ByteString.Lazy.Char8 as BS ( pack )
 import           Data.Either.Combinators    ( mapLeft )
@@ -32,12 +33,13 @@ reply :: Text -> Message -> Handler Text
 reply token Message {sender_id, text} = do
   manager <- liftIO $ newManager tlsManagerSettings
   userInfoEither <- liftIO (getUserInfo (pack sender_id) (Just token) manager)
-  GetUserInfoMessageResponse {first_name, last_name} <- liftEither $ fail500 userInfoEither
+  GetUserInfoMessageResponse {email} <- liftEither $ fail500 userInfoEither
 
-  result <- liftIO $ perform text (Account $ "CN=" ++ last_name ++ "\\, " ++ first_name ++ ",OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp")
-  _ <-
-    liftIO $
-    sendTextMessage
+  accountEither <- liftIO $ runExceptT $ Account <$> enrichObject "user" getUserByUsername (Account $ takeWhile (/= '@') email)
+  account <- liftEither $ fail500 accountEither
+
+  result <- liftIO $ perform text account
+  _ <- liftIO $ sendTextMessage
       (Just token)
       (SendTextMessageRequest (Base sender_id) (SendTextMessage result))
       manager

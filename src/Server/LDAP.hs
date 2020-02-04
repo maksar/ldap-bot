@@ -3,19 +3,49 @@
 
 module Server.LDAP where
 
-import           Control.Monad              ( when, (<=<) )
+import           Control.Monad              ( liftM, liftM2, when, (<=<) )
 import           Control.Monad.IO.Class     ( liftIO )
 import           Control.Monad.Trans.Except ( ExceptT, except, runExceptT, throwE, withExceptT )
-import qualified Data.ByteString.Char8      as BS ( pack, unpack )
+import qualified Data.ByteString.Char8      as BS ( pack )
+import           Data.Char                  ( toLower, toUpper )
 import           Data.List.NonEmpty         ( fromList )
-import qualified Data.Text                  as T ( concat, pack, unpack )
+import qualified Data.Text                  as T ( concat, unpack )
 import           Debug.Trace                ( traceShowId )
 import           Env
-import           Ldap.Client                ( Attr (Attr), AttrValue, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
+import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
                                               Operation (Add, Delete), Password (Password), Scope (SingleLevel),
                                               SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
                                               search, with )
 import           Server.Command
+
+perform :: String -> Enriched -> IO String
+perform input account = pure . either id id <=< runExceptT $ do
+    command <- commandFromInput input
+    enrichedCommand <- enrichCommand command
+    groupKnowledge <- groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
+    confirmedOperation <- operationByCommandAndKnowledge enrichedCommand groupKnowledge
+    executeOperation confirmedOperation
+
+enrichCommand :: ParsedCommand -> ExceptT String IO EnrichedCommand
+enrichCommand command
+  | (Append account group) <- command = liftM2 Append (enrichedAccount account) (enrichedGroup group)
+  | (Remove account group) <- command = liftM2 Remove (enrichedAccount account) (enrichedGroup group)
+  | (List group) <- command = liftM List (enrichedGroup group)
+  where
+    enrichedAccount account = Account <$> enrichObject "user" getUserByUsername account
+    enrichedGroup group = Group <$> enrichObject "group" getGroupByName group
+
+enrichObject :: String -> (String -> Ldap -> IO [SearchEntry]) -> Parsed -> ExceptT String IO SearchEntry
+enrichObject object fetcher parsed = do
+  entries <- withLDAP $ fetcher $ value parsed
+
+  when (null $ traceShowId entries) $ throwE $ capitalize object ++ " was not found."
+  when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
+
+  return $ head entries
+  where
+    capitalize [] = []
+    capitalize x  = toUpper (head x) : map toLower (tail x)
 
 login :: Ldap -> IO ()
 login ldap = do
@@ -39,48 +69,24 @@ withLDAP function = do
     function ldap
   withExceptT show $ except result
 
-find :: AttrValue -> Ldap -> IO [SearchEntry]
-find group ldap = search ldap
+getGroupByName :: String -> Ldap -> IO [SearchEntry]
+getGroupByName group ldap = search ldap
     (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
     (scope SingleLevel)
-    (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := group])
+    (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
     [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
-
-lookupGroup :: Group -> ExceptT String IO [SearchEntry]
-lookupGroup (Group group) = withLDAP $ find group
-
-perform :: String -> Account -> IO String
-perform input account = pure . either id id <=< runExceptT $ do
-    command <- commandFromInput input
-    searchEntries <- lookupGroup $ groupFromCommand command
-    groupKnowledge <- groupKnowledgeFromEntries account searchEntries
-    confirmedOperation <- operationByCommandAndKnowledge command groupKnowledge
-    user <- case traceShowId command of
-          List _               -> throwE "EEEE"
-          Append (Account a) _ -> realAccount a
-          Remove (Account a) _ -> realAccount a
-    executeOperation $ inject user confirmedOperation
-
-inject :: String -> ConfirmedCommand -> ConfirmedCommand
-inject user (Confirmed (Append _ g)) = Confirmed (Append (Account $ user) g)
-inject user (Confirmed (Remove _ g)) = Confirmed (Remove (Account $ user) g)
-inject _ c                           = c
-
-realAccount :: String -> ExceptT String IO String
-realAccount account = do
-  entries <- withLDAP $ getUserByUsername account
-  when (null $ traceShowId entries) $ throwE "User was not found."
-  when (length entries > 1) $ throwE "More than one user was found."
-  return $ fff $ head entries
-  where
-    fff (SearchEntry (Dn dn) _attrList) = T.unpack dn
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
-  | (Append account group) <- command = withLDAP $ modifyGroup Add group account
-  | (Remove account group) <- command = withLDAP $ modifyGroup Delete group account
-  | (List (Group group)) <- command = show <$> withLDAP (find group)
+  | (Append (Account (SearchEntry (Dn accountDnString) _)) (Group (SearchEntry groupDn _))) <- command =
+    modifyGroup Add groupDn accountDnString
+  | (Remove (Account (SearchEntry (Dn accountDnString) _)) (Group (SearchEntry groupDn _))) <- command =
+    modifyGroup Delete groupDn accountDnString
+  | (List (Group (SearchEntry (Dn groupDnString) _))) <- command =
+    show <$> withLDAP (getGroupByName $ T.unpack groupDnString)
+  | otherwise = throwE $ "Unknown combination of account and group in command " ++ show command
   where
-    modifyGroup operation (Group group) (Account account) ldap = do
-      modify ldap (Dn $ T.pack $ "CN=" ++ (BS.unpack $ group) ++ ",OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp") [operation (Attr "member") [BS.pack account]]
-      return "OK"
+    modifyGroup operation groupDn accountDnString =
+      withLDAP $ \ldap -> do
+        modify ldap groupDn [operation (Attr "member") [BS.pack $ T.unpack accountDnString]]
+        return "OK"
