@@ -15,5 +15,5 @@ readEnv name = lookupEnv name >>= \case
     putStrLn $ "Please set " ++ name ++ " evironment variable."
     exitFailure
 
-readPort :: (Integral a, Read a) => String -> IO a
+readPort :: String -> IO Int
 readPort name = read . unpack <$> readEnv name

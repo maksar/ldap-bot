@@ -79,7 +79,7 @@ withLDAP :: (Ldap -> IO a) -> ExceptT String IO a
 withLDAP function = do
   host <- liftIO $ readEnv "LDABOT_LDAP_HOST"
   port <- liftIO $ readPort "LDABOT_LDAP_PORT"
-  result <- liftIO $ with (Tls (T.unpack host) insecureTlsSettings) port $ \ldap -> do
+  result <- liftIO $ with (Tls (T.unpack host) insecureTlsSettings) (fromIntegral port) $ \ldap -> do
     login ldap
     function ldap
   withExceptT show $ except result

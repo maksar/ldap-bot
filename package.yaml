@@ -1,7 +1,27 @@
+name: ldabot
+version: 0.1.0.0
+author: Alexander Shestakov
+copyright: 2020 Alexander Shestakov
+maintainer: a.shestakov@itransition.com
 library:
   source-dirs: src
   ghc-options:
   - -Wall
+  dependencies:
+  - base >= 4.7 && < 5
+  - vector
+  - ldap-client
+  - hoist-error
+  - aeson
+  - text
+  - bytestring
+  - http-client
+  - http-client-tls
+  - servant-server
+  - servant-client
+  - wai-extra
+  - warp
+  - transformers
 tests:
   ldabot-test:
     source-dirs: test
@@ -18,33 +38,6 @@ tests:
     - genvalidity
     - genvalidity-text
     - genvalidity-hspec
-copyright: 2020 Alexander Shestakov
-maintainer: a.shestakov@itransition.com
-dependencies:
-- base >= 4.7 && < 5
-- vector
-- ldap-client
-- hoist-error
-- text-ldap
-- aeson
-- text
-- bytestring
-- http-client
-- http-client-tls
-- servant-server
-- servant-client
-- wai-logger
-- warp
-- pretty-simple
-- semigroupoids
-- transformers
-- smuggler
-- wai-extra
-- mtl
-name: ldabot
-version: 0.1.0.0
-author: Alexander Shestakov
-license: BSD3
 executables:
   ldabot-exe:
     source-dirs: app
@@ -56,3 +49,4 @@ executables:
     - -Wall
     dependencies:
     - ldabot
+    - base >= 4.7 && < 5
