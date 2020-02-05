@@ -44,10 +44,13 @@ groupFromCommand (Remove _ group) = group
 groupFromCommand (List group)     = group
 
 operationByCommandAndKnowledge :: Monad m => EnrichedCommand -> GroupKnowledge -> ExceptT String m ConfirmedCommand
-operationByCommandAndKnowledge c Owner = return $ Confirmed c
-operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
 operationByCommandAndKnowledge _ Member = throwE "You are not an owner of the group, just a member. So you cannot manage it."
 operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a member of the group. So you cannot manage it."
+operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
+operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
+  if elem dn $ members attList then throwE "User is already in a group." else return $ Confirmed c
+operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
+  if not $ elem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
 
 groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledgeOnRequester account group
@@ -58,7 +61,9 @@ groupKnowledgeOnRequester account group
       _             -> None
   where
     managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
-    members = extract [Attr "member"]
+
+members :: AttrList [] -> [Dn]
+members = extract [Attr "member"]
 
 extract :: [Attr] -> AttrList [] -> [Dn]
 extract attrs groupAttrList = map (Dn . T.pack . unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
