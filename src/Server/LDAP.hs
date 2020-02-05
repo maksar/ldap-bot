@@ -7,22 +7,22 @@ import           Control.Monad              ( liftM, liftM2, when )
 import           Control.Monad.IO.Class     ( liftIO )
 import           Control.Monad.Trans.Except ( ExceptT, except, throwE, withExceptT )
 
-import qualified Data.ByteString.Char8      as BS ( pack )
+import qualified Data.ByteString.Char8      as BS ( pack, unpack )
 import           Data.Char                  ( toLower, toUpper )
-import qualified Data.Text                  as T ( concat, unpack )
+import qualified Data.Text                  as T ( concat, drop, dropEnd, pack, splitOn, unpack, unwords )
 
+import           Data.List                  ( sort )
 import           Data.List.NonEmpty         ( fromList )
 
-import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
+import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
                                               Operation (Add, Delete), Password (Password), Scope (SingleLevel),
                                               SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
                                               search, with )
 
 import           Env                        ( readEnv, readPort )
 import           Server.Command             ( Account, Command (Append, List, Remove), ConfirmedCommand (Confirmed),
-                                              Enriched, EnrichedCommand, Parsed, ParsedCommand, Value (Value),
-                                              commandFromInput, formatGroupMembers, groupFromCommand,
-                                              groupKnowledgeOnRequester, operationByCommandAndKnowledge )
+                                              Enriched, EnrichedCommand, Group, GroupKnowledge (Member, None, Owner),
+                                              Parsed, ParsedCommand, Value (Value), commandFromInput, groupFromCommand )
 import           Server.Except              ( collapseEitherT )
 
 type Fetcher = (String -> Ldap -> IO [SearchEntry])
@@ -94,3 +94,34 @@ executeOperation (Confirmed command)
       withLDAP $ \ldap -> do
         modify ldap groupDn [operation (Attr "member") [BS.pack $ T.unpack accountDnString]]
         return "OK"
+
+operationByCommandAndKnowledge :: Monad m => EnrichedCommand -> GroupKnowledge -> ExceptT String m ConfirmedCommand
+operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
+operationByCommandAndKnowledge _ Member = throwE "You are not an owner of the group, just a member. So you cannot manage it."
+operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a member of the group. So you cannot manage it."
+operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
+  if elem dn $ members attList then throwE "User is already in a group." else return $ Confirmed c
+operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
+  if not $ elem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
+
+groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
+groupKnowledgeOnRequester account group
+  | (Value (SearchEntry accountDn _)) <- account, (Value (SearchEntry _ groupAttrList)) <- group =
+    case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
+      (True, _)     -> Owner
+      (False, True) -> Member
+      _             -> None
+  where
+    managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
+
+members :: AttrList [] -> [Dn]
+members = extract [Attr "member"]
+
+extract :: [Attr] -> AttrList [] -> [Dn]
+extract attrs groupAttrList = map (Dn . T.pack . BS.unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
+
+formatGroupMembers :: SearchEntry -> String
+formatGroupMembers (SearchEntry _ attrList) = unlines $ sort $ map humanizeDn $ members attrList
+
+humanizeDn :: Dn -> String
+humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
