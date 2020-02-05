@@ -72,7 +72,7 @@ extract :: [Attr] -> AttrList [] -> [Dn]
 extract attrs groupAttrList = map (Dn . T.pack . unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
 
 formatGroupMembers :: SearchEntry -> String
-formatGroupMembers (SearchEntry _ attrList) = unlines $ sort $ map humanizeDn $ extract [Attr "member"] attrList
+formatGroupMembers (SearchEntry _ attrList) = unlines $ sort $ map humanizeDn $ members attrList
 
 humanizeDn :: Dn -> String
 humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
