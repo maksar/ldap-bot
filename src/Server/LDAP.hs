@@ -17,6 +17,8 @@ import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=)
                                               search, with )
 import           Server.Command
 
+type Fetcher = (String -> Ldap -> IO [SearchEntry])
+
 perform :: String -> Enriched Account -> IO String
 perform input account = pure . either id id <=< runExceptT $ do
     command <- commandFromInput input
@@ -33,7 +35,7 @@ enrichCommand command
     enrichedAccount account = Value <$> enrichObject "user" getUserByUsername account
     enrichedGroup group = Value <$> enrichObject "group" getGroupByName group
 
-enrichObject :: String -> (String -> Ldap -> IO [SearchEntry]) -> Parsed t -> ExceptT String IO SearchEntry
+enrichObject :: String -> Fetcher -> Parsed t -> ExceptT String IO SearchEntry
 enrichObject object fetcher (Value value) = do
   entries <- withLDAP $ fetcher $ value
 
@@ -51,12 +53,19 @@ login ldap = do
   pass <- readEnvRequired "LDABOT_PASSWORD"
   bind ldap (Dn $ T.concat [user, "@itransition.com"]) (Password $ BS.pack $ T.unpack pass)
 
-getUserByUsername :: String -> Ldap -> IO [SearchEntry]
+getUserByUsername :: Fetcher
 getUserByUsername username ldap = search ldap
     (Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp")
     (scope SingleLevel)
     (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack username])
     [Attr "dn"]
+
+getGroupByName :: Fetcher
+getGroupByName group ldap = search ldap
+    (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
+    (scope SingleLevel)
+    (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
+    [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
 withLDAP :: (Ldap -> IO a) -> ExceptT String IO a
 withLDAP function = do
@@ -66,13 +75,6 @@ withLDAP function = do
     login ldap
     function ldap
   withExceptT show $ except result
-
-getGroupByName :: String -> Ldap -> IO [SearchEntry]
-getGroupByName group ldap = search ldap
-    (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
-    (scope SingleLevel)
-    (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
-    [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
