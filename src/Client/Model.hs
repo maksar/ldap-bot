@@ -26,7 +26,7 @@ data SendTextMessageResponse = SendTextMessageResponse
   }
   deriving (Eq, Show, Generic, FromJSON)
 
-data GetUserInfoMessageResponse = GetUserInfoMessageResponse
+newtype GetUserInfoMessageResponse = GetUserInfoMessageResponse
   { email :: String
   }
   deriving (Eq, Show, Generic, FromJSON)

@@ -16,8 +16,6 @@ RUN stack build || true
 
 ADD . .
 
-RUN stack clean
-
 RUN sed -i "s/    ghc-options:/    cc-options: -static\n    ld-options: -static -pthread\n    ghc-options:\n    - -O2\n    - -static/g" package.yaml
 
 RUN stack install --executable-stripping

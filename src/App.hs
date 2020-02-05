@@ -6,8 +6,8 @@ import           Data.Function                        ( (&) )
 import           Network.Wai.Handler.Warp             ( defaultSettings, runSettings, setPort )
 import           Network.Wai.Middleware.RequestLogger ( logStdoutDev )
 
-import           API                                  ( app )
 import           Env                                  ( readEnv, readPort )
+import           Server.API                           ( app )
 import           Server.LDAP                          ( login, withLDAP )
 
 ldabot :: IO ()

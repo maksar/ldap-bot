@@ -1,4 +1,4 @@
-module Verify where
+module Server.Verify where
 
 import           Control.Monad.IO.Class ( liftIO )
 

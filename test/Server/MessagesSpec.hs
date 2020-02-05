@@ -31,18 +31,18 @@ instance Validity Messages where
   validate (Messages _)     = valid
 
 spec :: Spec
-spec = do
+spec =
   describe "Messages spec" $ do
     genValiditySpec @Messages
     eqSpec @Messages
     showReadSpec @Messages
 
     it "deserializes properly" $
-      (eitherDecode [r|
+      eitherDecode [r|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
             "messaging": [{
               "sender": {"id": "sender_id", "community": {"id": "id"}},
               "recipient": {"id": "id"}, "timestamp": 1,
               "message": {"mid": "mid", "text": "text"}}]}]}
-      |]) `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")
+      |] `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")

@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module SendAPI where
+module Client.API where
 
 import           Data.Text           ( Text )
 
@@ -17,12 +17,11 @@ import           Servant.Client      ( BaseUrl (BaseUrl), ClientError, ClientM, 
                                        runClientM )
 
 graphAPIBaseUrl :: BaseUrl
-graphAPIBaseUrl = BaseUrl Https "graph.facebook.com" 443 "/v2.6"
+graphAPIBaseUrl = BaseUrl Https "graph.facebook.com" 443 "/v6.0"
 
 type FBMessengerSendAPI =
   "me" :> "messages" :> QueryParam "access_token" Text :> ReqBody '[JSON] SendTextMessageRequest :> Post '[JSON] SendTextMessageResponse
   :<|> QueryParam "access_token" Text :> Capture "user_id" Text :> QueryParam "fields" Text :> Get '[JSON] GetUserInfoMessageResponse
-
 
 api :: Proxy FBMessengerSendAPI
 api = Proxy

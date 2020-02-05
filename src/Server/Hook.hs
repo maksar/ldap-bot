@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Message where
+module Server.Hook where
 
 import           Control.Monad.Error.Hoist  ( (<?>) )
 import           Control.Monad.IO.Class     ( liftIO )
@@ -13,10 +13,10 @@ import           Network.HTTP.Client        ( newManager )
 import           Network.HTTP.Client.TLS    ( tlsManagerSettings )
 import           Servant                    ( Handler )
 
+import           Client.API                 ( getUserInfo, sendTextMessage )
 import           Client.Model               ( Base (Base), GetUserInfoMessageResponse (GetUserInfoMessageResponse),
                                               SendTextMessage (SendTextMessage),
                                               SendTextMessageRequest (SendTextMessageRequest), email )
-import           SendAPI                    ( getUserInfo, sendTextMessage )
 import           Server.Command             ( Value (Value) )
 import           Server.Except              ( collapseEitherT )
 import           Server.LDAP                ( enrichObject, getUserByUsername, perform )

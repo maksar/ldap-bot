@@ -3,7 +3,7 @@
 
 module Server.LDAP where
 
-import           Control.Monad              ( liftM, liftM2, when )
+import           Control.Monad              ( liftM2, when )
 import           Control.Monad.IO.Class     ( liftIO )
 import           Control.Monad.Trans.Except ( ExceptT, except, throwE, withExceptT )
 
@@ -38,14 +38,14 @@ enrichCommand :: ParsedCommand -> ExceptT String IO EnrichedCommand
 enrichCommand command
   | (Append account group) <- command = liftM2 Append (enrichedAccount account) (enrichedGroup group)
   | (Remove account group) <- command = liftM2 Remove (enrichedAccount account) (enrichedGroup group)
-  | (List group) <- command = liftM List (enrichedGroup group)
+  | (List group) <- command = List <$> enrichedGroup group
   where
     enrichedAccount account = Value <$> enrichObject "user" getUserByUsername account
     enrichedGroup group = Value <$> enrichObject "group" getGroupByName group
 
 enrichObject :: String -> Fetcher -> Parsed t -> ExceptT String IO SearchEntry
 enrichObject object fetcher (Value value) = do
-  entries <- withLDAP $ fetcher $ value
+  entries <- withLDAP $ fetcher value
 
   when (null entries) $ throwE $ capitalize object ++ " was not found."
   when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
@@ -102,7 +102,7 @@ operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a m
 operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
   if elem dn $ members attList then throwE "User is already in a group." else return $ Confirmed c
 operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
-  if not $ elem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
+  if notElem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
 
 groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledgeOnRequester account group

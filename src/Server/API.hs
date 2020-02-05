@@ -2,16 +2,16 @@
 {-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
 
-module API where
+module Server.API where
 
-import           Data.Text    ( Text )
+import           Data.Text     ( Text )
 
-import           Servant      ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy),
-                                QueryParam, ReqBody, Server, serve )
+import           Servant       ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy),
+                                 QueryParam, ReqBody, Server, serve )
 
-import           Message      ( webhookMessage )
-import           Server.Model ( Messages )
-import           Verify       ( webhookVerify )
+import           Server.Hook   ( webhookMessage )
+import           Server.Model  ( Messages )
+import           Server.Verify ( webhookVerify )
 
 type WebHookAPI = QueryParam "hub.verify_token" Text
   :> QueryParam "hub.challenge" Text :> Get '[PlainText] Text

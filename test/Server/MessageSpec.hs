@@ -19,7 +19,7 @@ instance Validity Message where
   validate (Message _ _)  = valid
 
 spec :: Spec
-spec = do
+spec =
   describe "Message specs" $ do
     genValiditySpec @Message
     eqSpec @Message
