@@ -78,7 +78,7 @@ executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
   | (Append (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Add groupDn accountDnString
   | (Remove (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Delete groupDn accountDnString
-  | (List (Value (SearchEntry _ groupAttrList))) <- command = return $ show groupAttrList
+  | (List (Value group)) <- command = return $ formatGroupMembers group
   where
     modifyGroup operation groupDn accountDnString =
       withLDAP $ \ldap -> do

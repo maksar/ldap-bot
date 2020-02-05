@@ -4,22 +4,22 @@ module Server.Command where
 
 import           Control.Monad.Trans.Except ( ExceptT, throwE )
 import           Data.ByteString.Char8      ( unpack )
-import           Data.Text                  ( pack )
-import           Ldap.Client                ( Attr (Attr), Dn (Dn), SearchEntry (SearchEntry) )
+import           Data.List                  ( sort )
+import qualified Data.Text                  as T ( drop, dropEnd, pack, splitOn, unpack, unwords )
+import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), SearchEntry (SearchEntry) )
 
 data Account = Account
 data Group = Group
 
-newtype Value t v = Value v
-             deriving (Eq, Show, Read)
+newtype Value t v = Value v deriving (Eq, Show, Read)
 
 type Parsed t = Value t String
 type Enriched t = Value t SearchEntry
 
 data Command a g = Append a g
-               | Remove a g
-               | List g
-               deriving (Eq, Show, Read)
+  | Remove a g
+  | List g
+  deriving (Eq, Show, Read)
 
 type ParsedCommand = Command (Parsed Account) (Parsed Group)
 type EnrichedCommand = Command (Enriched Account) (Enriched Group)
@@ -57,7 +57,14 @@ groupKnowledgeOnRequester account group
       (False, True) -> Member
       _             -> None
   where
-    managers groupAttrList = extract groupAttrList [Attr "managedBy", Attr "msExchCoManagedByLink"]
-    members groupAttrList = extract groupAttrList [Attr "member"]
+    managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
+    members = extract [Attr "member"]
 
-    extract groupAttrList attrs = map (Dn . pack . unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review
+extract :: [Attr] -> AttrList [] -> [Dn]
+extract attrs groupAttrList = map (Dn . T.pack . unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
+
+formatGroupMembers :: SearchEntry -> String
+formatGroupMembers (SearchEntry _ attrList) = unlines $ sort $ map humanizeDn $ extract [Attr "member"] attrList
+
+humanizeDn :: Dn -> String
+humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
