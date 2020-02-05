@@ -24,7 +24,7 @@ data Command a g = Append a g
 type ParsedCommand = Command (Parsed Account) (Parsed Group)
 type EnrichedCommand = Command (Enriched Account) (Enriched Group)
 
-newtype ConfirmedCommand = Confirmed EnrichedCommand
+newtype ConfirmedCommand = Confirmed EnrichedCommand deriving (Show)
 
 data GroupKnowledge = Owner
   | Member

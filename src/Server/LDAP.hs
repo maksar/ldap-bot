@@ -10,7 +10,6 @@ import qualified Data.ByteString.Char8      as BS ( pack )
 import           Data.Char                  ( toLower, toUpper )
 import           Data.List.NonEmpty         ( fromList )
 import qualified Data.Text                  as T ( concat, unpack )
-import           Debug.Trace                ( traceShowId )
 import           Env
 import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
                                               Operation (Add, Delete), Password (Password), Scope (SingleLevel),
@@ -38,7 +37,7 @@ enrichObject :: String -> (String -> Ldap -> IO [SearchEntry]) -> Parsed t -> Ex
 enrichObject object fetcher (Value value) = do
   entries <- withLDAP $ fetcher $ value
 
-  when (null $ traceShowId entries) $ throwE $ capitalize object ++ " was not found."
+  when (null entries) $ throwE $ capitalize object ++ " was not found."
   when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
 
   return $ head entries
@@ -77,12 +76,9 @@ getGroupByName group ldap = search ldap
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
-  | (Append (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command =
-    modifyGroup Add groupDn accountDnString
-  | (Remove (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command =
-    modifyGroup Delete groupDn accountDnString
-  | (List (Value (SearchEntry (Dn groupDnString) _))) <- command =
-    show <$> withLDAP (getGroupByName $ T.unpack groupDnString)
+  | (Append (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Add groupDn accountDnString
+  | (Remove (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Delete groupDn accountDnString
+  | (List (Value (SearchEntry _ groupAttrList))) <- command = return $ show groupAttrList
   where
     modifyGroup operation groupDn accountDnString =
       withLDAP $ \ldap -> do
