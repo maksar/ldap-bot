@@ -18,12 +18,11 @@ import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=)
                                               search, with )
 import           Server.Command
 
-perform :: String -> Enriched -> IO String
+perform :: String -> Enriched Account -> IO String
 perform input account = pure . either id id <=< runExceptT $ do
     command <- commandFromInput input
     enrichedCommand <- enrichCommand command
-    groupKnowledge <- groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
-    confirmedOperation <- operationByCommandAndKnowledge enrichedCommand groupKnowledge
+    confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
     executeOperation confirmedOperation
 
 enrichCommand :: ParsedCommand -> ExceptT String IO EnrichedCommand
@@ -32,12 +31,12 @@ enrichCommand command
   | (Remove account group) <- command = liftM2 Remove (enrichedAccount account) (enrichedGroup group)
   | (List group) <- command = liftM List (enrichedGroup group)
   where
-    enrichedAccount account = Account <$> enrichObject "user" getUserByUsername account
-    enrichedGroup group = Group <$> enrichObject "group" getGroupByName group
+    enrichedAccount account = Value <$> enrichObject "user" getUserByUsername account
+    enrichedGroup group = Value <$> enrichObject "group" getGroupByName group
 
-enrichObject :: String -> (String -> Ldap -> IO [SearchEntry]) -> Parsed -> ExceptT String IO SearchEntry
-enrichObject object fetcher parsed = do
-  entries <- withLDAP $ fetcher $ value parsed
+enrichObject :: String -> (String -> Ldap -> IO [SearchEntry]) -> Parsed t -> ExceptT String IO SearchEntry
+enrichObject object fetcher (Value value) = do
+  entries <- withLDAP $ fetcher $ value
 
   when (null $ traceShowId entries) $ throwE $ capitalize object ++ " was not found."
   when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
@@ -78,13 +77,12 @@ getGroupByName group ldap = search ldap
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
-  | (Append (Account (SearchEntry (Dn accountDnString) _)) (Group (SearchEntry groupDn _))) <- command =
+  | (Append (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command =
     modifyGroup Add groupDn accountDnString
-  | (Remove (Account (SearchEntry (Dn accountDnString) _)) (Group (SearchEntry groupDn _))) <- command =
+  | (Remove (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command =
     modifyGroup Delete groupDn accountDnString
-  | (List (Group (SearchEntry (Dn groupDnString) _))) <- command =
+  | (List (Value (SearchEntry (Dn groupDnString) _))) <- command =
     show <$> withLDAP (getGroupByName $ T.unpack groupDnString)
-  | otherwise = throwE $ "Unknown combination of account and group in command " ++ show command
   where
     modifyGroup operation groupDn accountDnString =
       withLDAP $ \ldap -> do

@@ -7,20 +7,22 @@ import           Data.ByteString.Char8      ( unpack )
 import           Data.Text                  ( pack )
 import           Ldap.Client                ( Attr (Attr), Dn (Dn), SearchEntry (SearchEntry) )
 
-data Value v = Account { value :: v }
-             | Group { value :: v }
+data Account = Account
+data Group = Group
+
+newtype Value t v = Value v
              deriving (Eq, Show, Read)
 
-type Parsed = Value String
-type Enriched = Value SearchEntry
+type Parsed t = Value t String
+type Enriched t = Value t SearchEntry
 
-data Command a = Append a a
-               | Remove a a
-               | List a
+data Command a g = Append a g
+               | Remove a g
+               | List g
                deriving (Eq, Show, Read)
 
-type ParsedCommand = Command Parsed
-type EnrichedCommand = Command Enriched
+type ParsedCommand = Command (Parsed Account) (Parsed Group)
+type EnrichedCommand = Command (Enriched Account) (Enriched Group)
 
 newtype ConfirmedCommand = Confirmed EnrichedCommand
 
@@ -31,12 +33,12 @@ data GroupKnowledge = Owner
 
 commandFromInput :: Monad m => String -> ExceptT String m ParsedCommand
 commandFromInput string = case words string of
-  ["/add", person, "to", group]      -> return $ Append (Account person) (Group group)
-  ["/remove", person, "from", group] -> return $ Remove (Account person) (Group group)
-  ["/list", group]                   -> return $ List (Group group)
+  ["/add", person, "to", group]      -> return $ Append (Value person) (Value group)
+  ["/remove", person, "from", group] -> return $ Remove (Value person) (Value group)
+  ["/list", group]                   -> return $ List (Value group)
   _                                  -> throwE $ unwords ["Unknown command", string]
 
-groupFromCommand :: Command a -> a
+groupFromCommand :: Command a g -> g
 groupFromCommand (Append _ group) = group
 groupFromCommand (Remove _ group) = group
 groupFromCommand (List group)     = group
@@ -47,14 +49,13 @@ operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
 operationByCommandAndKnowledge _ Member = throwE "You are not an owner of the group, just a member. So you cannot manage it."
 operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a member of the group. So you cannot manage it."
 
-groupKnowledgeOnRequester :: Monad m => Enriched -> Enriched -> ExceptT String m GroupKnowledge
+groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledgeOnRequester account group
-  | (Account (SearchEntry accountDn _)) <- account, (Group (SearchEntry _ groupAttrList)) <- group =
-    return $ case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
-          (True, _)     -> Owner
-          (False, True) -> Member
-          _             -> None
-  | otherwise = throwE "Unknown combination of parameters"
+  | (Value (SearchEntry accountDn _)) <- account, (Value (SearchEntry _ groupAttrList)) <- group =
+    case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
+      (True, _)     -> Owner
+      (False, True) -> Member
+      _             -> None
   where
     managers groupAttrList = extract groupAttrList [Attr "managedBy", Attr "msExchCoManagedByLink"]
     members groupAttrList = extract groupAttrList [Attr "member"]

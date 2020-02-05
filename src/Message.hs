@@ -35,7 +35,7 @@ reply token Message {sender_id, text} = do
   userInfoEither <- liftIO (getUserInfo (pack sender_id) (Just token) manager)
   GetUserInfoMessageResponse {email} <- liftEither $ fail500 userInfoEither
 
-  accountEither <- liftIO $ runExceptT $ Account <$> enrichObject "user" getUserByUsername (Account $ takeWhile (/= '@') email)
+  accountEither <- liftIO $ runExceptT $ Value <$> enrichObject "user" getUserByUsername (Value $ takeWhile (/= '@') email)
   account <- liftEither $ fail500 accountEither
 
   result <- liftIO $ perform text account
