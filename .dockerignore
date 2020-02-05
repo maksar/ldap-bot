@@ -1,0 +1,4 @@
+.stack-work/
+ldabot.cabal
+.env
+Dockerfile
