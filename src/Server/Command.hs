@@ -36,10 +36,10 @@ data GroupKnowledge = Owner
 
 commandFromInput :: Monad m => String -> ExceptT String m ParsedCommand
 commandFromInput string = case words string of
-  ["/add", person, "to", group]      -> return $ Append (Value person) (Value group)
-  ["/remove", person, "from", group] -> return $ Remove (Value person) (Value group)
-  ["/list", group]                   -> return $ List (Value group)
-  _                                  -> throwE $ unwords ["Unknown command", string]
+  ("/add" : person : "to" : group)      -> return $ Append (Value person) (Value $ unwords group)
+  ("/remove" : person : "from" : group) -> return $ Remove (Value person) (Value $ unwords group)
+  ("/list" : group)                     -> return $ List (Value $ unwords group)
+  _                                     -> throwE $ unwords ["Unknown command:", string]
 
 groupFromCommand :: Command a g -> g
 groupFromCommand (Append _ group) = group

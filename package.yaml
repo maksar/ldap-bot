@@ -8,12 +8,8 @@ library:
   ghc-options:
   - -Wall
   dependencies:
-  - base >= 4.7 && < 5
-  - vector
   - ldap-client
   - hoist-error
-  - aeson
-  - text
   - bytestring
   - http-client
   - http-client-tls
@@ -21,7 +17,20 @@ library:
   - servant-client
   - wai-extra
   - warp
-  - transformers
+dependencies:
+- base >= 4.7 && < 5
+- aeson
+- text
+- vector
+- transformers
+
+- hspec
+- validity
+- validity-vector
+- genvalidity
+- genvalidity-vector
+- genvalidity-hspec
+- raw-strings-qq
 tests:
   ldabot-test:
     source-dirs: test
@@ -32,12 +41,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ldabot
-    - hspec
-    - validity
-    - validity-text
-    - genvalidity
-    - genvalidity-text
-    - genvalidity-hspec
 executables:
   ldabot-exe:
     source-dirs: app
@@ -49,4 +52,3 @@ executables:
     - -Wall
     dependencies:
     - ldabot
-    - base >= 4.7 && < 5
