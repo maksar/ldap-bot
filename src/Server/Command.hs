@@ -44,9 +44,9 @@ groupFromCommand (Remove _ group) = group
 groupFromCommand (List group)     = group
 
 operationByCommandAndKnowledge :: Monad m => EnrichedCommand -> GroupKnowledge -> ExceptT String m ConfirmedCommand
+operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
 operationByCommandAndKnowledge _ Member = throwE "You are not an owner of the group, just a member. So you cannot manage it."
 operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a member of the group. So you cannot manage it."
-operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
 operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
   if elem dn $ members attList then throwE "User is already in a group." else return $ Confirmed c
 operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
