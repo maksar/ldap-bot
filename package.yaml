@@ -21,10 +21,10 @@ tests:
 copyright: 2020 Alexander Shestakov
 maintainer: a.shestakov@itransition.com
 dependencies:
-- either
-- vector
 - base >= 4.7 && < 5
+- vector
 - ldap-client
+- hoist-error
 - text-ldap
 - aeson
 - text

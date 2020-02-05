@@ -48,6 +48,7 @@ extra-deps:
 - hash-store-0.1.0@sha256:aa7a3e9c1e4d6eb426a0682b8d2164c3d954b23d34e9ca33c9f04fbc9e5198a3,1144
 - smuggler-0.1.0@sha256:2d70cdb59ea8df9ba0c97d3c9c0c6603c4bb82323061d1066ec60544518e73d1,4031
 - monad-dijkstra-0.1.1.2@sha256:4bca3eca6358f916b06501f82c7bfa4c59236af0ac8cac551854c2e928e78c37,1962
+- hoist-error-0.2.1.0@sha256:f238a27a593ec0c9b4f5263adf917b7c3b76daffed2398d7520e43e6515169f2,1221
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

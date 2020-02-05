@@ -5,6 +5,7 @@
 module Client.Model where
 
 import           Data.Aeson   ( FromJSON, ToJSON )
+
 import           GHC.Generics ( Generic )
 
 newtype Base = Base { id :: String }
@@ -26,10 +27,7 @@ data SendTextMessageResponse = SendTextMessageResponse
   deriving (Eq, Show, Read, Generic, FromJSON, ToJSON)
 
 data GetUserInfoMessageResponse = GetUserInfoMessageResponse
-  { email      :: String
-  , name       :: String
-  , last_name  :: String
-  , first_name :: String
+  { email :: String
   }
   deriving (Eq, Show, Read, Generic, FromJSON, ToJSON)
 

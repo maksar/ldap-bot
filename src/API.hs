@@ -5,15 +5,17 @@
 module API where
 
 import           Data.Text    ( Text )
-import           Message      ( webhookMessage )
+
 import           Servant      ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy),
                                 QueryParam, ReqBody, Server, serve )
+
+import           Message      ( webhookMessage )
 import           Server.Model ( Messages )
 import           Verify       ( webhookVerify )
 
 type WebHookAPI = QueryParam "hub.verify_token" Text
   :> QueryParam "hub.challenge" Text :> Get '[PlainText] Text
-  :<|> ReqBody '[JSON] Messages :> Post '[PlainText, JSON] Text
+  :<|> ReqBody '[JSON] Messages :> Post '[JSON] ()
 
 webHookAPI :: Proxy WebHookAPI
 webHookAPI = Proxy

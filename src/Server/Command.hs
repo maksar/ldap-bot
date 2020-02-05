@@ -3,9 +3,12 @@
 module Server.Command where
 
 import           Control.Monad.Trans.Except ( ExceptT, throwE )
+
 import           Data.ByteString.Char8      ( unpack )
-import           Data.List                  ( sort )
 import qualified Data.Text                  as T ( drop, dropEnd, pack, splitOn, unpack, unwords )
+
+import           Data.List                  ( sort )
+
 import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), SearchEntry (SearchEntry) )
 
 data Account = Account

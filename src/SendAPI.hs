@@ -5,11 +5,14 @@
 
 module SendAPI where
 
-import           Client.Model        ( GetUserInfoMessageResponse, SendTextMessageRequest, SendTextMessageResponse )
 import           Data.Text           ( Text )
+
 import           Network.HTTP.Client ( Manager )
+
 import           Servant             ( (:<|>) ((:<|>)), (:>), Capture, Get, JSON, Post, Proxy (Proxy), QueryParam,
                                        ReqBody )
+
+import           Client.Model        ( GetUserInfoMessageResponse, SendTextMessageRequest, SendTextMessageResponse )
 import           Servant.Client      ( BaseUrl (BaseUrl), ClientError, ClientM, Scheme (Https), client, mkClientEnv,
                                        runClientM )
 
@@ -34,4 +37,4 @@ sendTextMessage token request manager = runClientM
 
 getUserInfo :: Text -> Maybe Text -> Manager -> IO (Either ClientError GetUserInfoMessageResponse)
 getUserInfo account token manager = runClientM
-  (getUserInfo_ token account (Just "email,name,first_name,last_name")) (mkClientEnv manager graphAPIBaseUrl)
+  (getUserInfo_ token account (Just "email")) (mkClientEnv manager graphAPIBaseUrl)

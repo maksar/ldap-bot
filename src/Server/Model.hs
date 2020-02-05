@@ -5,8 +5,11 @@ module Server.Model where
 
 import           Control.Applicative ( (<|>) )
 import           Control.Monad       ( join )
+
 import           Data.Aeson          ( FromJSON, parseJSON, withArray, withObject, (.:) )
-import           Data.Vector         ( toList )
+
+import           Data.Vector         ( Vector )
+
 import           GHC.Generics        ( Generic )
 
 data Message = Message
@@ -15,12 +18,12 @@ data Message = Message
   }
   deriving (Eq, Show, Read, Generic)
 
-newtype Messages = Messages { messages :: [ Message ] }
+newtype Messages = Messages { messages :: Vector Message }
     deriving ( Eq, Show, Read, Generic )
 
 instance FromJSON Messages where
     parseJSON = withObject "root object" $ \root ->
-        root .: "entry" >>= fmap (Messages . toList . join) . withArray
+        root .: "entry" >>= fmap (Messages . join) . withArray
             "entries array"
             (mapM $ withObject "entry object" $ \entry ->
                 entry .: "messaging" >>= withArray

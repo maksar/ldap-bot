@@ -60,6 +60,13 @@ packages:
       sha256: 055ea4bab35e29fc8a2e4f8e2a9b3acb2219d1f074729ba9ef96308b64b11876
   original:
     hackage: monad-dijkstra-0.1.1.2@sha256:4bca3eca6358f916b06501f82c7bfa4c59236af0ac8cac551854c2e928e78c37,1962
+- completed:
+    hackage: hoist-error-0.2.1.0@sha256:f238a27a593ec0c9b4f5263adf917b7c3b76daffed2398d7520e43e6515169f2,1221
+    pantry-tree:
+      size: 281
+      sha256: a8fd6aafc02e04b20e9697c27a62472815e3658237cc490deb71b32373305327
+  original:
+    hackage: hoist-error-0.2.1.0@sha256:f238a27a593ec0c9b4f5263adf917b7c3b76daffed2398d7520e43e6515169f2,1221
 snapshots:
 - completed:
     size: 524164

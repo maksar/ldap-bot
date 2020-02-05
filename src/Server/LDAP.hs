@@ -3,24 +3,32 @@
 
 module Server.LDAP where
 
-import           Control.Monad              ( liftM, liftM2, when, (<=<) )
+import           Control.Monad              ( liftM, liftM2, when )
 import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( ExceptT, except, runExceptT, throwE, withExceptT )
+import           Control.Monad.Trans.Except ( ExceptT, except, throwE, withExceptT )
+
 import qualified Data.ByteString.Char8      as BS ( pack )
 import           Data.Char                  ( toLower, toUpper )
-import           Data.List.NonEmpty         ( fromList )
 import qualified Data.Text                  as T ( concat, unpack )
-import           Env
+
+import           Data.List.NonEmpty         ( fromList )
+
 import           Ldap.Client                ( Attr (Attr), Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
                                               Operation (Add, Delete), Password (Password), Scope (SingleLevel),
                                               SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
                                               search, with )
-import           Server.Command
+
+import           Env                        ( readEnv, readPort )
+import           Server.Command             ( Account, Command (Append, List, Remove), ConfirmedCommand (Confirmed),
+                                              Enriched, EnrichedCommand, Parsed, ParsedCommand, Value (Value),
+                                              commandFromInput, formatGroupMembers, groupFromCommand,
+                                              groupKnowledgeOnRequester, operationByCommandAndKnowledge )
+import           Server.Except              ( collapseEitherT )
 
 type Fetcher = (String -> Ldap -> IO [SearchEntry])
 
 perform :: String -> Enriched Account -> IO String
-perform input account = pure . either id id <=< runExceptT $ do
+perform input account = collapseEitherT $ do
     command <- commandFromInput input
     enrichedCommand <- enrichCommand command
     confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
@@ -49,8 +57,8 @@ enrichObject object fetcher (Value value) = do
 
 login :: Ldap -> IO ()
 login ldap = do
-  user <- readEnvRequired "LDABOT_USERNAME"
-  pass <- readEnvRequired "LDABOT_PASSWORD"
+  user <- readEnv "LDABOT_USERNAME"
+  pass <- readEnv "LDABOT_PASSWORD"
   bind ldap (Dn $ T.concat [user, "@itransition.com"]) (Password $ BS.pack $ T.unpack pass)
 
 getUserByUsername :: Fetcher
@@ -69,7 +77,7 @@ getGroupByName group ldap = search ldap
 
 withLDAP :: (Ldap -> IO a) -> ExceptT String IO a
 withLDAP function = do
-  host <- liftIO $ readEnvRequired "LDABOT_LDAP_HOST"
+  host <- liftIO $ readEnv "LDABOT_LDAP_HOST"
   port <- liftIO $ readPort "LDABOT_LDAP_PORT"
   result <- liftIO $ with (Tls (T.unpack host) insecureTlsSettings) port $ \ldap -> do
     login ldap
