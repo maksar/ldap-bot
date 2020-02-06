@@ -15,7 +15,7 @@ spec =
       runExceptT (commandFromInput "/remove username from group with spaces") `shouldReturn` Right (Remove (Value "username") (Value "group with spaces"))
 
     it "parsed list command" $
-      runExceptT (commandFromInput "/list group with spaces") `shouldReturn` Right (List (Value "group with spaces"))
+      runExceptT (commandFromInput "/list of group with spaces") `shouldReturn` Right (List (Value "group with spaces"))
 
     it "fails to parse unknown command" $
       runExceptT (commandFromInput "/unknown command") `shouldReturn` Left "Unknown command: /unknown command"

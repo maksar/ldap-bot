@@ -7,17 +7,19 @@
 
 module Server.MessagesSpec where
 
-import           Data.GenValidity        ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
-import           Data.GenValidity.Vector ()
-import           Test.Hspec              ( Spec, describe, it, shouldBe )
-import           Test.Validity           ( eqSpec, genValiditySpec, showReadSpec )
+import           Data.GenValidity           ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
+import           Data.GenValidity.Vector    ()
+import           Test.Hspec                 ( Spec, describe, it, shouldBe )
+import           Test.Validity              ( eqSpec, genValiditySpec, showReadSpec )
 
-import           Data.Aeson              ( eitherDecode )
-import           Data.Vector             as V ( Vector, null, singleton )
-import           Text.RawString.QQ       ( r )
+import           Data.Aeson                 ( eitherDecode )
+import           Data.ByteString.Lazy.Char8 ( pack )
+import           Data.Text                  ( unpack )
+import           Data.Vector                as V ( Vector, null, singleton )
+import           NeatInterpolation          ( text )
 
-import           Server.MessageSpec      ()
-import           Server.Model            ( Message (Message), Messages (Messages) )
+import           Server.MessageSpec         ()
+import           Server.Model               ( Message (Message), Messages (Messages) )
 
 
 pattern Empty :: V.Vector a
@@ -38,19 +40,19 @@ spec =
     showReadSpec @Messages
 
     it "deserializes properly" $ do
-      eitherDecode [r|
+      eitherDecode (pack $ unpack [text|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
             "messaging": [{
               "sender": {"id": "sender_id", "community": {"id": "id"}},
               "recipient": {"id": "id"}, "timestamp": 1,
               "message": {"mid": "mid", "text": "text"}}]}]}
-      |] `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")
+      |]) `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")
 
-      eitherDecode [r|
+      eitherDecode (pack $ unpack [text|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
             "messaging": [{"sender": {"id": "sender_id", "community": {"id": "id"}},
               "recipient": {"id": "id"}, "timestamp": 1,
               "postback": {"title": "title", "payload": "payload"}}]}]}
-      |] `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "payload")
+      |]) `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "payload")

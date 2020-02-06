@@ -10,7 +10,6 @@ library:
   dependencies:
   - ldap-client
   - hoist-error
-  - bytestring
   - http-client
   - http-client-tls
   - servant-server
@@ -23,6 +22,7 @@ dependencies:
 - text
 - vector
 - transformers
+- bytestring
 
 - hspec
 - validity
