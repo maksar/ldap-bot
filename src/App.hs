@@ -12,7 +12,7 @@ import           Server.LDAP                          ( login, withLDAP )
 
 ldabot :: IO ()
 ldabot = do
-  _ <- runExceptT $ withLDAP login
+  _ <- runExceptT $ withLDAP "Unable to login to LDAP." login
   port <- readPort "LDABOT_PORT"
   verifyToken <- readEnv "LDABOT_VERIFY_TOKEN"
   pageToken <- readEnv "LDABOT_PAGE_TOKEN"

@@ -4,8 +4,10 @@
 module Server.LDAP where
 
 import           Control.Monad              ( liftM2, when )
+import           Control.Monad.Error.Hoist  ( (<?>) )
 import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( ExceptT, except, throwE, withExceptT )
+import           Control.Monad.Trans.Except ( ExceptT, throwE )
+
 
 import qualified Data.ByteString.Char8      as BS ( pack, unpack )
 import           Data.Char                  ( toLower, toUpper )
@@ -23,12 +25,12 @@ import           Env                        ( readEnv, readPort )
 import           Server.Command             ( Account, Command (Append, List, Remove), ConfirmedCommand (Confirmed),
                                               Enriched, EnrichedCommand, Group, GroupKnowledge (Member, None, Owner),
                                               Parsed, ParsedCommand, Value (Value), commandFromInput, groupFromCommand )
-import           Server.Except              ( collapseEitherT )
+import           Server.Except              ( collapseExceptT )
 
 type Fetcher = (String -> Ldap -> IO [SearchEntry])
 
 perform :: String -> Enriched Account -> IO String
-perform input account = collapseEitherT $ do
+perform input account = collapseExceptT $ do
     command <- commandFromInput input
     enrichedCommand <- enrichCommand command
     confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
@@ -45,7 +47,7 @@ enrichCommand command
 
 enrichObject :: String -> Fetcher -> Parsed t -> ExceptT String IO SearchEntry
 enrichObject object fetcher (Value value) = do
-  entries <- withLDAP $ fetcher value
+  entries <- withLDAP ("Cannot fetch " ++ object ++ " from LDAP.") $ fetcher value
 
   when (null entries) $ throwE $ capitalize object ++ " was not found."
   when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
@@ -63,26 +65,27 @@ login ldap = do
 
 getUserByUsername :: Fetcher
 getUserByUsername username ldap = search ldap
-    (Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp")
-    (scope SingleLevel)
-    (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack username])
-    [Attr "dn"]
+  (Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp")
+  (scope SingleLevel)
+  (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack username])
+  [Attr "dn"]
 
 getGroupByName :: Fetcher
 getGroupByName group ldap = search ldap
-    (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
-    (scope SingleLevel)
-    (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
-    [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
+  (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
+  (scope SingleLevel)
+  (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
+  [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
-withLDAP :: (Ldap -> IO a) -> ExceptT String IO a
-withLDAP function = do
-  host <- liftIO $ readEnv "LDABOT_LDAP_HOST"
-  port <- liftIO $ readPort "LDABOT_LDAP_PORT"
-  result <- liftIO $ with (Tls (T.unpack host) insecureTlsSettings) (fromIntegral port) $ \ldap -> do
-    login ldap
-    function ldap
-  withExceptT show $ except result
+withLDAP :: String -> (Ldap -> IO a) -> ExceptT String IO a
+withLDAP message function = do
+  result <- liftIO $ do
+    host <- readEnv "LDABOT_LDAP_HOST"
+    port <- readPort "LDABOT_LDAP_PORT"
+    with (Tls (T.unpack host) insecureTlsSettings) (fromIntegral port) $ \ldap -> do
+      login ldap
+      function ldap
+  result <?> message
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
@@ -91,7 +94,7 @@ executeOperation (Confirmed command)
   | (List (Value group)) <- command = return $ formatGroupMembers group
   where
     modifyGroup operation groupDn accountDnString =
-      withLDAP $ \ldap -> do
+      withLDAP "Cannot modify group in LDAP." $ \ldap -> do
         modify ldap groupDn [operation (Attr "member") [BS.pack $ T.unpack accountDnString]]
         return "OK"
 
