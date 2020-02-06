@@ -33,7 +33,7 @@ commandFromInput :: Monad m => String -> ExceptT String m ParsedCommand
 commandFromInput string = case words string of
   ("/add" : person : "to" : group)      -> return $ Append (Value person) (Value $ unwords group)
   ("/remove" : person : "from" : group) -> return $ Remove (Value person) (Value $ unwords group)
-  ("/list" : group)                     -> return $ List (Value $ unwords group)
+  ("/list" : "of" : group)              -> return $ List (Value $ unwords group)
   _                                     -> throwE $ unwords ["Unknown command:", string]
 
 groupFromCommand :: Command a g -> g

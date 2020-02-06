@@ -30,7 +30,7 @@ dependencies:
 - genvalidity
 - genvalidity-vector
 - genvalidity-hspec
-- raw-strings-qq
+- neat-interpolation
 tests:
   ldabot-test:
     source-dirs: test

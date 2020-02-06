@@ -3,18 +3,17 @@
 
 module Server.Hook where
 
+import           Control.Monad              ( when )
 import           Control.Monad.Error.Hoist  ( (<?>) )
 import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( runExceptT )
+import           Control.Monad.Trans.Except ( runExceptT, throwE )
 
-import           Data.Text                  ( Text, pack, unpack )
+import           Data.Text                  as T ( Text, empty, null, pack, unpack )
 import qualified Data.Vector                as V ( forM_ )
 
-import           Network.HTTP.Client        ( Manager, newManager )
-import           Network.HTTP.Client.TLS    ( tlsManagerSettings )
 import           Servant                    ( Handler )
 
-import           Client.API                 ( getUserInfo, sendTextMessage )
+import           Client.API                 ( getUserInfo, sendHelpMessage, sendTextMessage )
 import           Client.Model               ( Base (Base), GetUserInfoMessageResponse (GetUserInfoMessageResponse),
                                               SendTextMessage (SendTextMessage),
                                               SendTextMessageRequest (SendTextMessageRequest), email )
@@ -25,15 +24,20 @@ import           Server.Model               ( Message (Message, sender_id, text)
 
 webhookMessage :: Text -> Messages -> Handler ()
 webhookMessage token (Messages messages) = do
-  manager <- liftIO $ newManager tlsManagerSettings
+  V.forM_ messages $ \message@(Message {sender_id}) -> liftIO $ do
+    result <- reply token message
+    when (T.null result) $ return ()
 
-  V.forM_ messages $ \message@(Message {sender_id}) -> runExceptT $ do
-    result <- liftIO $ reply manager token message
-    liftIO $ sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result)) manager
+    sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
 
-reply :: Manager -> Text -> Message -> IO Text
-reply manager token Message {sender_id, text} = collapseExceptT $ do
-  userInfoEither <- liftIO $ getUserInfo (pack sender_id) (Just token) manager
+reply :: Text -> Message -> IO Text
+reply token Message {sender_id, text} = collapseExceptT $ do
+  when (text == "/help") $ do
+    sendMessageEither <- liftIO $ sendHelpMessage (Just token) (pack sender_id)
+    sendMessageEither <?> "Unable send help message."
+    throwE T.empty
+
+  userInfoEither <- liftIO $ getUserInfo (pack sender_id) (Just token)
   GetUserInfoMessageResponse {email} <- userInfoEither <?> "Unable to obtain user email."
 
   accountEither <- liftIO $ runExceptT $ Value <$> enrichObject "user" getUserByUsername (accountFromEmail email)

@@ -31,10 +31,10 @@ type Fetcher = (String -> Ldap -> IO [SearchEntry])
 
 perform :: String -> Enriched Account -> IO String
 perform input account = collapseExceptT $ do
-    command <- commandFromInput input
-    enrichedCommand <- enrichCommand command
-    confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
-    executeOperation confirmedOperation
+  command <- commandFromInput input
+  enrichedCommand <- enrichCommand command
+  confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
+  executeOperation confirmedOperation
 
 enrichCommand :: ParsedCommand -> ExceptT String IO EnrichedCommand
 enrichCommand command

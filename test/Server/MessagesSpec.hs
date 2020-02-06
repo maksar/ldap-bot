@@ -37,7 +37,7 @@ spec =
     eqSpec @Messages
     showReadSpec @Messages
 
-    it "deserializes properly" $
+    it "deserializes properly" $ do
       eitherDecode [r|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
@@ -46,3 +46,11 @@ spec =
               "recipient": {"id": "id"}, "timestamp": 1,
               "message": {"mid": "mid", "text": "text"}}]}]}
       |] `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")
+
+      eitherDecode [r|
+        { "object": "page",
+          "entry": [{"id": "id", "time": 1,
+            "messaging": [{"sender": {"id": "sender_id", "community": {"id": "id"}},
+              "recipient": {"id": "id"}, "timestamp": 1,
+              "postback": {"title": "title", "payload": "payload"}}]}]}
+      |] `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "payload")
