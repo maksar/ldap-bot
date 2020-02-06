@@ -3,11 +3,11 @@
 
 module Server.LDAP where
 
+import           Control.Exception          ( bracket_ )
 import           Control.Monad              ( liftM2, when )
 import           Control.Monad.Error.Hoist  ( (<?>) )
 import           Control.Monad.IO.Class     ( liftIO )
 import           Control.Monad.Trans.Except ( ExceptT, throwE )
-
 
 import qualified Data.ByteString.Char8      as BS ( pack, unpack )
 import           Data.Char                  ( toLower, toUpper )
@@ -78,14 +78,16 @@ getGroupByName group ldap = search ldap
   [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
 withLDAP :: String -> (Ldap -> IO a) -> ExceptT String IO a
-withLDAP message function = do
+withLDAP errorMessage operation = do
   result <- liftIO $ do
     host <- readEnv "LDABOT_LDAP_HOST"
     port <- readPort "LDABOT_LDAP_PORT"
-    with (Tls (T.unpack host) insecureTlsSettings) (fromIntegral port) $ \ldap -> do
-      login ldap
-      function ldap
-  result <?> message
+    with (tls host) (fromIntegral port) $ operation `prependedWith` login
+  result <?> errorMessage
+  where
+    tls host = Tls (T.unpack host) insecureTlsSettings
+    prependedWith work before arg = bracket_ (before arg) (return ()) (work arg)
+
 
 executeOperation :: ConfirmedCommand -> ExceptT String IO String
 executeOperation (Confirmed command)
