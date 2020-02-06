@@ -31,9 +31,11 @@ sendTextMessage_ :: Maybe Text -> SendTextMessageRequest -> ClientM SendTextMess
 sendTextMessage_ :<|> getUserInfo_ = client api
 
 sendTextMessage :: Maybe Text -> SendTextMessageRequest -> Manager -> IO (Either ClientError SendTextMessageResponse)
-sendTextMessage token request manager = runClientM
-  (sendTextMessage_ token request) (mkClientEnv manager graphAPIBaseUrl)
+sendTextMessage token request manager = do
+  putStrLn $ "Sending " ++ show request
+  runClientM (sendTextMessage_ token request) (mkClientEnv manager graphAPIBaseUrl)
 
 getUserInfo :: Text -> Maybe Text -> Manager -> IO (Either ClientError GetUserInfoMessageResponse)
-getUserInfo account token manager = runClientM
-  (getUserInfo_ token account (Just "email")) (mkClientEnv manager graphAPIBaseUrl)
+getUserInfo account token manager = do
+  putStrLn $ "Gettting account details for " ++ show account
+  runClientM (getUserInfo_ token account (Just "email")) (mkClientEnv manager graphAPIBaseUrl)
