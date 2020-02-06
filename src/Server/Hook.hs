@@ -24,11 +24,12 @@ import           Server.Model               ( Message (Message, sender_id, text)
 
 webhookMessage :: Text -> Messages -> Handler ()
 webhookMessage token (Messages messages) = do
-  V.forM_ messages $ \message@(Message {sender_id}) -> liftIO $ do
-    result <- reply token message
-    when (T.null result) $ return ()
+  V.forM_ messages $ \message@(Message {sender_id}) -> collapseExceptT $ do
+    result <- liftIO $ reply token message
+    when (T.null result) $ throwE T.empty
 
-    sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
+    liftIO $ sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
+    return T.empty
 
 reply :: Text -> Message -> IO Text
 reply token Message {sender_id, text} = collapseExceptT $ do
