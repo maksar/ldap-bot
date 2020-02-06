@@ -4,3 +4,5 @@ services:
     restart: always
     image: docker-registry.itransition.corp/ldabot
     env_file: .env
+    ports:
+      - "31337:31337"

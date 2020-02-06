@@ -19,6 +19,7 @@ ADD . .
 RUN sed -i "s/    ghc-options:/    cc-options: -static\n    ld-options: -static -pthread\n    ghc-options:\n    - -O2\n    - -static/g" package.yaml
 
 RUN stack install --executable-stripping
+RUN strip /root/.local/bin/ldabot-exe
 
 FROM scratch
 
