@@ -1,0 +1,6 @@
+version: '2.1'
+services:
+  ldabot:
+    restart: always
+    image: docker-registry.itransition.corp/ldabot
+    env_file: .env
