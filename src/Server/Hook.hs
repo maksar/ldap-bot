@@ -23,12 +23,12 @@ import           Server.LDAP                ( enrichObject, getUserByUsername, p
 import           Server.Model               ( Message (Message, sender_id, text), Messages (Messages) )
 
 webhookMessage :: Text -> Messages -> Handler ()
-webhookMessage token (Messages messages) = do
-  V.forM_ messages $ \message@(Message {sender_id}) -> collapseExceptT $ do
+webhookMessage token (Messages messages) =
+  V.forM_ messages $ \message@Message {sender_id} -> collapseExceptT $ do
     result <- liftIO $ reply token message
     when (T.null result) $ throwE T.empty
 
-    liftIO $ sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
+    _ <- liftIO $ sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
     return T.empty
 
 reply :: Text -> Message -> IO Text
