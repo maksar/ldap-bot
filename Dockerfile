@@ -16,12 +16,11 @@ RUN stack build || true
 
 ADD . .
 
-RUN sed -i "s/    ghc-options:/    cc-options: -static\n    ld-options: -static -pthread\n    ghc-options:\n    - -O2\n    - -static/g" package.yaml
+RUN stack install
 
-RUN stack install --executable-stripping
-RUN strip /root/.local/bin/ldabot-exe
-
-FROM scratch
+FROM gcr.io/distroless/base
+COPY --from=haskell /lib/x86_64-linux-gnu/libz* /lib/x86_64-linux-gnu/
+COPY --from=haskell /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
 
 COPY --from=haskell /root/.local/bin/ldabot-exe /app
 
