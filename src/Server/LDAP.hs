@@ -129,7 +129,7 @@ extract attrs groupAttrList = nub $ map (Dn . T.pack . BS.unpack) $ concatMap sn
 formatGroupMembers :: SearchEntry -> String
 formatGroupMembers (SearchEntry _ attrList) = unlines ["Members:", listGroup members, "", "Managers:", listGroup managers]
   where
-    listGroup list =  unlines $ sort $ map humanizeDn $ list attrList
+    listGroup list = unlines $ sort $ map humanizeDn $ list attrList
 
 humanizeDn :: Dn -> String
 humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
