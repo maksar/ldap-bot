@@ -11,7 +11,7 @@ import           Control.Monad.Trans.Except ( ExceptT, throwE )
 
 import qualified Data.ByteString.Char8      as BS ( pack, unpack )
 import           Data.Char                  ( toLower, toUpper )
-import qualified Data.Text                  as T ( concat, drop, dropEnd, pack, splitOn, unpack, unwords )
+import qualified Data.Text                  as T ( drop, dropEnd, pack, splitOn, unpack, unwords )
 
 import           Data.List                  ( sort )
 import           Data.List.NonEmpty         ( fromList )
@@ -61,7 +61,7 @@ login :: Ldap -> IO ()
 login ldap = do
   user <- readEnv "LDABOT_USERNAME"
   pass <- readEnv "LDABOT_PASSWORD"
-  bind ldap (Dn $ T.concat [user, "@itransition.com"]) (Password $ BS.pack $ T.unpack pass)
+  bind ldap (Dn user) (Password $ BS.pack $ T.unpack pass)
 
 getUserByUsername :: Fetcher
 getUserByUsername username ldap = search ldap
@@ -83,6 +83,7 @@ withLDAP errorMessage operation = do
     host <- readEnv "LDABOT_LDAP_HOST"
     port <- readPort "LDABOT_LDAP_PORT"
     with (tls host) (fromIntegral port) $ operation `prependedWith` login
+
   result <?> errorMessage
   where
     tls host = Tls (T.unpack host) insecureTlsSettings
