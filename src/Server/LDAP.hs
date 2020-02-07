@@ -13,7 +13,7 @@ import qualified Data.ByteString.Char8      as BS ( pack, unpack )
 import           Data.Char                  ( toLower, toUpper )
 import qualified Data.Text                  as T ( drop, dropEnd, pack, splitOn, unpack, unwords )
 
-import           Data.List                  ( sort )
+import           Data.List                  ( nub, sort )
 import           Data.List.NonEmpty         ( fromList )
 
 import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
@@ -111,23 +111,25 @@ operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (Sear
   if notElem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
 
 groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
-groupKnowledgeOnRequester account group
-  | (Value (SearchEntry accountDn _)) <- account, (Value (SearchEntry _ groupAttrList)) <- group =
-    case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
-      (True, _)     -> Owner
-      (False, True) -> Member
-      _             -> None
-  where
-    managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
+groupKnowledgeOnRequester (Value (SearchEntry accountDn _)) (Value (SearchEntry _ groupAttrList)) =
+  case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
+    (True, _)     -> Owner
+    (False, True) -> Member
+    _             -> None
 
 members :: AttrList [] -> [Dn]
 members = extract [Attr "member"]
 
+managers :: AttrList [] -> [Dn]
+managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
+
 extract :: [Attr] -> AttrList [] -> [Dn]
-extract attrs groupAttrList = map (Dn . T.pack . BS.unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
+extract attrs groupAttrList = nub $ map (Dn . T.pack . BS.unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
 
 formatGroupMembers :: SearchEntry -> String
-formatGroupMembers (SearchEntry _ attrList) = unlines $ sort $ map humanizeDn $ members attrList
+formatGroupMembers (SearchEntry _ attrList) = unlines ["Members:", listGroup members, "", "Managers:", listGroup managers]
+  where
+    listGroup list =  unlines $ sort $ map humanizeDn $ list attrList
 
 humanizeDn :: Dn -> String
 humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
