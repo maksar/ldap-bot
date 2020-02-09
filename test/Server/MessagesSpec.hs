@@ -1,11 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE PatternSynonyms  #-}
+{-# LANGUAGE QuasiQuotes      #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns     #-}
 
-module Server.MessagesSpec where
+module Server.MessagesSpec (spec) where
 
 import           Data.GenValidity           ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
 import           Data.GenValidity.Vector    ()
@@ -16,11 +15,10 @@ import           Data.Aeson                 ( eitherDecode )
 import           Data.ByteString.Lazy.Char8 ( pack )
 import           Data.Text                  ( unpack )
 import           Data.Vector                as V ( Vector, null, singleton )
-import           NeatInterpolation          ( text )
+import qualified NeatInterpolation          as I ( text )
 
 import           Server.MessageSpec         ()
-import           Server.Model               ( Message (Message), Messages (Messages) )
-
+import           Server.Model
 
 pattern Empty :: V.Vector a
 pattern Empty <- (V.null -> True)
@@ -40,7 +38,7 @@ spec =
     showReadSpec @Messages
 
     it "deserializes properly" $ do
-      eitherDecode (pack $ unpack [text|
+      eitherDecode (pack $ unpack [I.text|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
             "messaging": [{
@@ -49,7 +47,7 @@ spec =
               "message": {"mid": "mid", "text": "text"}}]}]}
       |]) `shouldBe` Right (Messages $ V.singleton $ Message "sender_id" "text")
 
-      eitherDecode (pack $ unpack [text|
+      eitherDecode (pack $ unpack [I.text|
         { "object": "page",
           "entry": [{"id": "id", "time": 1,
             "messaging": [{"sender": {"id": "sender_id", "community": {"id": "id"}},

@@ -1,114 +1,117 @@
 {-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 
-module Server.LDAP where
+module Server.LDAP
+(
+  MonadLdap(..),
+  perform,
+  runLdapT,
+  MonadLdapT
+) where
 
-import           Control.Exception          ( bracket_ )
-import           Control.Monad              ( liftM2, when )
-import           Control.Monad.Error.Hoist  ( (<?>) )
-import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( ExceptT, throwE )
+import           Control.Exception         ( bracket_ )
+import           Control.Monad             ( liftM2, when )
+import           Control.Monad.Error.Hoist ( (<?>) )
+import           Control.Monad.Except      ( ExceptT, MonadError, runExceptT, throwError )
+import           Control.Monad.IO.Class    ( MonadIO, liftIO )
+import           Control.Monad.Reader
 
-import qualified Data.ByteString.Char8      as BS ( pack, unpack )
-import           Data.Char                  ( toLower, toUpper )
-import qualified Data.Text                  as T ( drop, dropEnd, pack, splitOn, unpack, unwords )
+import qualified Data.ByteString.Char8     as BS ( pack, unpack )
+import           Data.List                 ( nub, sort )
+import           Data.List.NonEmpty        ( fromList )
+import           Data.Text                 ( Text, drop, dropEnd, pack, splitOn, stripEnd, unlines, unpack, unwords )
+import           Prelude                   hiding ( drop, unlines, unwords )
 
-import           Data.List                  ( nub, sort )
-import           Data.List.NonEmpty         ( fromList )
+import           Ldap.Client               ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap, Mod,
+                                             Operation (Add, Delete), Password (Password), Scope (SingleLevel), Search,
+                                             SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope, search,
+                                             with )
 
-import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
-                                              Operation (Add, Delete), Password (Password), Scope (SingleLevel),
-                                              SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
-                                              search, with )
+import           Env
+import           Server.Command
 
-import           Env                        ( readEnv, readPort )
-import           Server.Command             ( Account, Command (Append, List, Remove), ConfirmedCommand (Confirmed),
-                                              Enriched, EnrichedCommand, Group, GroupKnowledge (Member, None, Owner),
-                                              Parsed, ParsedCommand, Value (Value), commandFromInput, groupFromCommand )
-import           Server.Except              ( collapseExceptT )
+type LdapOperation a = Ldap -> IO a
 
-type Fetcher = (String -> Ldap -> IO [SearchEntry])
+class (MonadError Text m, MonadReader Config m) => MonadLdap m where
+  searchLdap :: Dn -> Mod Search -> Filter -> [Attr] -> m [SearchEntry]
+  modifyLdap :: Dn -> [Operation]-> m ()
 
-perform :: String -> Enriched Account -> IO String
-perform input account = collapseExceptT $ do
+type MonadLdapT m = ReaderT Config (ExceptT Text m)
+
+runLdapT :: Monad m => Config -> MonadLdapT m a -> m (Either Text a)
+runLdapT config m = runExceptT $ runReaderT m config
+
+instance MonadLdap (MonadLdapT IO) where
+  searchLdap base searchScope searchFilter attrs = withLdap $ \ldap -> search ldap base searchScope searchFilter attrs
+  modifyLdap base operations = withLdap $ \ldap -> modify ldap base operations
+
+withLdap :: (MonadLdap m, MonadIO m) => LdapOperation b -> m b
+withLdap operation = do
+  result <- do
+    Config {_ldapHost, _ldapPort, _user, _password} <- ask
+    liftIO $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)
+  result <?> "Unable to perform Active Directory request."
+  where
+    login ldap user password = bind ldap (Dn user) $ Password $ BS.pack $ unpack password
+    tls host = Tls (unpack host) insecureTlsSettings
+    prepend work before arg = bracket_ (before arg) (return ()) (work arg)
+
+perform :: MonadLdap m => Text -> Text -> m Text
+perform input email = do
+  account <- enrichAccount $ Value email
   command <- commandFromInput input
   enrichedCommand <- enrichCommand command
   confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
   executeOperation confirmedOperation
 
-enrichCommand :: ParsedCommand -> ExceptT String IO EnrichedCommand
+enrichCommand :: MonadLdap m => ParsedCommand -> m EnrichedCommand
 enrichCommand command
-  | (Append account group) <- command = liftM2 Append (enrichedAccount account) (enrichedGroup group)
-  | (Remove account group) <- command = liftM2 Remove (enrichedAccount account) (enrichedGroup group)
-  | (List group) <- command = List <$> enrichedGroup group
-  where
-    enrichedAccount account = Value <$> enrichObject "user" getUserByUsername account
-    enrichedGroup group = Value <$> enrichObject "group" getGroupByName group
+  | (Append account group) <- command = liftM2 Append (enrichAccount account) (enrichGroup group)
+  | (Remove account group) <- command = liftM2 Remove (enrichAccount account) (enrichGroup group)
+  | (List group) <- command = List <$> enrichGroup group
 
-enrichObject :: String -> Fetcher -> Parsed t -> ExceptT String IO SearchEntry
-enrichObject object fetcher (Value value) = do
-  entries <- withLDAP ("Cannot fetch " ++ object ++ " from LDAP.") $ fetcher value
+enrichAccount :: MonadLdap m => Parsed Account -> m (Enriched Account)
+enrichAccount (Value account) = validateObject "User" =<< do
+  Config {_activeUsersContainer} <- ask
+  searchLdap
+    _activeUsersContainer
+    (scope SingleLevel)
+    (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack (unpack account)])
+    [Attr "dn"]
 
-  when (null entries) $ throwE $ capitalize object ++ " was not found."
-  when (length entries > 1) $ throwE $ "More than one " ++ object ++ " was found."
+enrichGroup :: MonadLdap m => Parsed Group -> m (Enriched Group)
+enrichGroup (Value group) = validateObject "Group" =<< do
+  Config {_projectGroupsContainer} <- ask
+  searchLdap
+    _projectGroupsContainer
+    (scope SingleLevel)
+    (And $ fromList [Attr "objectClass" := "Group", Attr "cn" := BS.pack (unpack group)])
+    [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
-  return $ head entries
-  where
-    capitalize [] = []
-    capitalize x  = toUpper (head x) : map toLower (tail x)
+validateObject :: MonadError Text m => Text -> [SearchEntry] -> m (Enriched b)
+validateObject object list = do
+  when (null list) $ throwError $ unwords [object, "was not found."]
+  return $ Value $ head list
 
-login :: Ldap -> IO ()
-login ldap = do
-  user <- readEnv "LDABOT_USERNAME"
-  pass <- readEnv "LDABOT_PASSWORD"
-  bind ldap (Dn user) (Password $ BS.pack $ T.unpack pass)
-
-getUserByUsername :: Fetcher
-getUserByUsername username ldap = search ldap
-  (Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp")
-  (scope SingleLevel)
-  (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack username])
-  [Attr "dn"]
-
-getGroupByName :: Fetcher
-getGroupByName group ldap = search ldap
-  (Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")
-  (scope SingleLevel)
-  (And $ fromList [Attr "objectClass" := "Group", Attr "CN" := BS.pack group])
-  [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
-
-withLDAP :: String -> (Ldap -> IO a) -> ExceptT String IO a
-withLDAP errorMessage operation = do
-  result <- liftIO $ do
-    host <- readEnv "LDABOT_LDAP_HOST"
-    port <- readPort "LDABOT_LDAP_PORT"
-    with (tls host) (fromIntegral port) $ operation `prependedWith` login
-
-  result <?> errorMessage
-  where
-    tls host = Tls (T.unpack host) insecureTlsSettings
-    prependedWith work before arg = bracket_ (before arg) (return ()) (work arg)
-
-
-executeOperation :: ConfirmedCommand -> ExceptT String IO String
+executeOperation :: MonadLdap m => ConfirmedCommand -> m Text
 executeOperation (Confirmed command)
-  | (Append (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Add groupDn accountDnString
-  | (Remove (Value (SearchEntry (Dn accountDnString) _)) (Value (SearchEntry groupDn _))) <- command = modifyGroup Delete groupDn accountDnString
+  | (Append (Value (SearchEntry (Dn account) _)) (Value (SearchEntry group _))) <- command = modifyGroup Add group account
+  | (Remove (Value (SearchEntry (Dn account) _)) (Value (SearchEntry group _))) <- command = modifyGroup Delete group account
   | (List (Value group)) <- command = return $ formatGroupMembers group
   where
-    modifyGroup operation groupDn accountDnString =
-      withLDAP "Cannot modify group in LDAP." $ \ldap -> do
-        modify ldap groupDn [operation (Attr "member") [BS.pack $ T.unpack accountDnString]]
-        return "OK"
+    modifyGroup operation group account = do
+      modifyLdap group [operation (Attr "member") [BS.pack $ unpack account]]
+      return "OK"
 
-operationByCommandAndKnowledge :: Monad m => EnrichedCommand -> GroupKnowledge -> ExceptT String m ConfirmedCommand
+operationByCommandAndKnowledge :: MonadError Text m => EnrichedCommand -> GroupKnowledge -> m ConfirmedCommand
 operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
-operationByCommandAndKnowledge _ Member = throwE "You are not an owner of the group, just a member. So you cannot manage it."
-operationByCommandAndKnowledge _ None = throwE "You are neither an owner nor a member of the group. So you cannot manage it."
+operationByCommandAndKnowledge _ Member = throwError "You are not an owner of the group, just a member. So you cannot manage it."
+operationByCommandAndKnowledge _ None = throwError "You are neither an owner nor a member of the group. So you cannot manage it."
 operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
-  if elem dn $ members attList then throwE "User is already in a group." else return $ Confirmed c
+  if elem dn $ members attList then throwError "User is already in a group." else return $ Confirmed c
 operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
-  if notElem dn $ members attList then throwE "There is no such user in a group." else return $ Confirmed c
+  if notElem dn $ members attList then throwError "There is no such user in a group." else return $ Confirmed c
 
 groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledgeOnRequester (Value (SearchEntry accountDn _)) (Value (SearchEntry _ groupAttrList)) =
@@ -124,12 +127,13 @@ managers :: AttrList [] -> [Dn]
 managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]
 
 extract :: [Attr] -> AttrList [] -> [Dn]
-extract attrs groupAttrList = nub $ map (Dn . T.pack . BS.unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
+extract attrs groupAttrList = nub $ map (Dn . pack . BS.unpack) $ concatMap snd $ filter (flip elem attrs . fst) groupAttrList -- TODO review or do with Lens
 
-formatGroupMembers :: SearchEntry -> String
-formatGroupMembers (SearchEntry _ attrList) = unlines ["Members:", listGroup members, "", "Managers:", listGroup managers]
+formatGroupMembers :: SearchEntry -> Text
+formatGroupMembers (SearchEntry dn attrList) =
+  stripEnd $ unlines [unlines [unwords ["Group:", humanizeDn dn]], "Members:", listGroup members, "Managers:", listGroup managers]
   where
     listGroup list = unlines $ sort $ map humanizeDn $ list attrList
 
-humanizeDn :: Dn -> String
-humanizeDn (Dn dn) = T.unpack $ T.unwords $ T.splitOn "\\, " $ T.dropEnd 1 $ T.drop 3 $ head $ T.splitOn "OU=" dn
+humanizeDn :: Dn -> Text
+humanizeDn (Dn dn) = unwords $ splitOn "\\, " $ dropEnd 1 $ drop 3 $ head $ splitOn "OU=" dn

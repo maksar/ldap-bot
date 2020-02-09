@@ -7,11 +7,13 @@ library:
   source-dirs: src
   ghc-options:
   - -Wall
+default-extensions:
+- OverloadedStrings
 dependencies:
 - base >= 4.7 && < 5
 
 - aeson
-- transformers
+- data-default
 
 - text
 - vector
@@ -20,14 +22,17 @@ dependencies:
 
 - ldap-client
 
-- hoist-error
-
 - http-client
 - http-client-tls
+
 - servant-server
 - servant-client
+
 - wai-extra
 - warp
+
+- mtl
+- hoist-error
 
 - hspec
 - validity

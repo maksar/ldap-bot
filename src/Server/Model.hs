@@ -1,7 +1,9 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 
-module Server.Model where
+module Server.Model (
+  Message(..),
+  Messages(..)
+) where
 
 import           Control.Applicative ( (<|>) )
 import           Control.Monad       ( join )
@@ -22,17 +24,17 @@ newtype Messages = Messages { messages :: Vector Message }
     deriving ( Eq, Show, Read, Generic )
 
 instance FromJSON Messages where
-    parseJSON = withObject "root object" $ \root ->
-        root .: "entry" >>= fmap (Messages . join) . withArray
-            "entries array"
-            (mapM $ withObject "entry object" $ \entry ->
-                entry .: "messaging" >>= withArray
-                    "messaging array"
-                    (mapM $ withObject "message object" $ \message ->
-                        Message
-                            <$> (message .: "sender" >>= (.: "id"))
-                            <*> (   (message .: "message" >>= (.: "text"))
-                                <|> (message .:  "postback" >>= (.: "payload"))
-                                )
-                    )
-            )
+  parseJSON = withObject "root object" $ \root ->
+    root .: "entry" >>= fmap (Messages . join) . withArray
+      "entries array"
+      (mapM $ withObject "entry object" $ \entry ->
+        entry .: "messaging" >>= withArray
+          "messaging array"
+          (mapM $ withObject "message object" $ \message ->
+            Message
+              <$> (message .: "sender" >>= (.: "id"))
+              <*> (   (message .: "message" >>= (.: "text"))
+                 <|> (message .:  "postback" >>= (.: "payload"))
+                  )
+          )
+      )

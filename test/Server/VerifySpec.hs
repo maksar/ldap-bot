@@ -1,28 +1,21 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+module Server.VerifySpec (spec) where
 
-module Server.VerifySpec where
-
+import           Data.Default
 import           System.IO.Silently ( silence )
 import           Test.Hspec         ( Spec, context, describe, it, shouldReturn )
 
 import           Servant.Server     ( err500, runHandler )
 
-import           Server.Verify      ( webhookVerify )
-
-import           Data.Maybe         ( fromJust )
+import           Env
+import           Server.Verify
 
 spec :: Spec
 spec =
   describe "Verify endpoint" $ do
-    let challenge = Just "challenge"
-    let storedToken = "stored"
-    context "when verify token does not match with stored token" $ do
-      let receivedToken = Just "received"
+    context "when verify token does not match with stored token" $
       it "should fail the verification" $
-        silence (runHandler (webhookVerify storedToken receivedToken challenge)) `shouldReturn` Left err500
+        silence (runHandler (webhookVerify def {_verifyToken = "stored"} (Just "notStored") (Just "challenge"))) `shouldReturn` Left err500
 
-    context "when verify token does match with stored token" $ do
-      let receivedToken = Just storedToken
+    context "when verify token does match with stored token" $
       it "should succeed the verification" $
-        runHandler (webhookVerify storedToken receivedToken challenge) `shouldReturn` Right (fromJust challenge)
+        runHandler (webhookVerify def {_verifyToken = "stored"} (Just "stored") (Just "challenge")) `shouldReturn` Right "challenge"

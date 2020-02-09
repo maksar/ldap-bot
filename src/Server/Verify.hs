@@ -1,14 +1,15 @@
-module Server.Verify where
+{-# LANGUAGE NamedFieldPuns #-}
+module Server.Verify (
+  webhookVerify
+) where
 
-import           Control.Monad.IO.Class ( liftIO )
+import           Data.Text ( Text )
 
-import           Data.Text              ( Text )
+import           Servant   ( Handler, err500, throwError )
 
-import           Servant                ( Handler, err500, throwError )
+import           Env
 
-webhookVerify :: Text -> Maybe Text -> Maybe Text -> Handler Text
-webhookVerify verifyTokenStored (Just verifyToken) (Just challenge)
-  | verifyToken == verifyTokenStored = return challenge
-webhookVerify _ verifyToken challenge = do
-  liftIO $ putStrLn $ "Wrong validation request. Got (token, challenge) = (" ++ show verifyToken ++", " ++ show challenge ++ ")"
-  throwError err500
+webhookVerify :: Config -> Maybe Text -> Maybe Text -> Handler Text
+webhookVerify Config {_verifyToken} (Just verifyToken) (Just challenge)
+  | _verifyToken == verifyToken = return challenge
+webhookVerify _ _ _ = throwError err500

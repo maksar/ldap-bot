@@ -1,17 +1,21 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeFamilies   #-}
+{-# LANGUAGE TypeOperators  #-}
 
-module Server.API where
+module Server.API (
+  app
+) where
 
 import           Data.Text     ( Text )
 
 import           Servant       ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy),
                                  QueryParam, ReqBody, Server, serve )
 
-import           Server.Hook   ( webhookMessage )
-import           Server.Model  ( Messages )
-import           Server.Verify ( webhookVerify )
+import           Env
+import           Server.Hook
+import           Server.Model
+import           Server.Verify
 
 type WebHookAPI = QueryParam "hub.verify_token" Text
   :> QueryParam "hub.challenge" Text :> Get '[PlainText] Text
@@ -20,9 +24,9 @@ type WebHookAPI = QueryParam "hub.verify_token" Text
 webHookAPI :: Proxy WebHookAPI
 webHookAPI = Proxy
 
-server :: Text -> Text -> Server WebHookAPI
-server verifyTokenStored pageTokenStored =
-  webhookVerify verifyTokenStored :<|> webhookMessage pageTokenStored
+server :: Config -> Server WebHookAPI
+server config =
+  webhookVerify config :<|> webhookMessage config
 
-app :: Text -> Text -> Application
-app verifyToken pageToken = serve webHookAPI $ server verifyToken pageToken
+app :: Config -> Application
+app config = serve webHookAPI $ server config

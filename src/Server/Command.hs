@@ -1,17 +1,35 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
-module Server.Command where
+module Server.Command (
+  Account,
+  Command (..),
+  ConfirmedCommand (..),
+  Enriched,
+  EnrichedCommand,
+  Group,
+  GroupKnowledge (..),
+  Parsed,
+  ParsedCommand,
+  Value (..),
+  commandFromInput,
+  groupFromCommand
+)
+where
 
-import           Control.Monad.Trans.Except ( ExceptT, throwE )
+import           Control.Monad.Except ( MonadError, throwError )
 
-import           Ldap.Client                ( SearchEntry )
+import           Data.Text            ( Text, unwords, words )
+import           Prelude              hiding ( unwords, words )
 
-data Account = Account
-data Group = Group
+import           Ldap.Client          ( SearchEntry )
+
+data Account
+data Group
 
 newtype Value t v = Value v deriving (Eq, Show)
 
-type Parsed t = Value t String
+type Parsed t = Value t Text
 type Enriched t = Value t SearchEntry
 
 data Command a g = Append a g
@@ -27,16 +45,15 @@ newtype ConfirmedCommand = Confirmed EnrichedCommand
 data GroupKnowledge = Owner
   | Member
   | None
-  deriving (Eq, Show)
 
-commandFromInput :: Monad m => String -> ExceptT String m ParsedCommand
+commandFromInput :: MonadError Text m => Text -> m ParsedCommand
 commandFromInput string = case words string of
   ("/add" : person : "to" : group)      -> return $ Append (Value person) (Value $ unwords group)
   ("/remove" : person : "from" : group) -> return $ Remove (Value person) (Value $ unwords group)
   ("/list" : "of" : group)              -> return $ List (Value $ unwords group)
-  _                                     -> throwE $ unwords ["Unknown command:", string]
+  _                                     -> throwError $ unwords ["Unknown command:", string]
 
-groupFromCommand :: Command a g -> g
+groupFromCommand :: EnrichedCommand -> Enriched Group
 groupFromCommand (Append _ group) = group
 groupFromCommand (Remove _ group) = group
 groupFromCommand (List group)     = group

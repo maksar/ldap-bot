@@ -1,20 +1,25 @@
-module App where
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns   #-}
 
-import           Control.Monad.Trans.Except           ( runExceptT )
-import           Data.Function                        ( (&) )
+module App (
+  ldabot
+) where
+
+import           Control.Monad.Except                 ( MonadError )
+import           Control.Monad.IO.Class               ( MonadIO, liftIO )
+
+import           Data.Text
 
 import           Network.Wai.Handler.Warp             ( defaultSettings, runSettings, setPort )
 import           Network.Wai.Middleware.RequestLogger ( logStdoutDev )
 
-import           Env                                  ( readEnv, readPort )
-import           Server.API                           ( app )
-import           Server.LDAP                          ( login, withLDAP )
+import           Env
+import           Server.API
 
-ldabot :: IO ()
+ldabot :: (MonadIO m, MonadError Text m) => m ()
 ldabot = do
-  _ <- runExceptT $ withLDAP "Unable to login to LDAP." login
-  port <- readPort "LDABOT_PORT"
-  verifyToken <- readEnv "LDABOT_VERIFY_TOKEN"
-  pageToken <- readEnv "LDABOT_PAGE_TOKEN"
-  putStrLn $ "Ldabot is listening on port " ++ show port
-  runSettings (defaultSettings & setPort port) $ logStdoutDev $ app verifyToken pageToken
+  conf@Config {_port} <- readConfig
+
+  liftIO $ do
+    putStrLn $ "Ldabot is listening on port " ++ show _port
+    runSettings (setPort _port defaultSettings) $ logStdoutDev $ app conf

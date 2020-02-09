@@ -2,7 +2,13 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Client.Model where
+module Client.Model (
+  Base(..),
+  SendTextMessage(..),
+  SendTextMessageRequest(..),
+  SendTextMessageResponse(..),
+  GetUserInfoMessageResponse(..)
+) where
 
 import           Data.Aeson   ( FromJSON, ToJSON )
 

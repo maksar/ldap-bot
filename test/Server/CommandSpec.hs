@@ -1,9 +1,10 @@
-module Server.CommandSpec where
+module Server.CommandSpec (spec) where
 
-import           Test.Hspec                 ( Spec, describe, it, shouldReturn )
+import           Test.Hspec           ( Spec, describe, it, shouldReturn )
 
-import           Control.Monad.Trans.Except ( runExceptT )
-import           Server.Command             ( Command (Append, List, Remove), Value (Value), commandFromInput )
+import           Control.Monad.Except ( runExceptT )
+
+import           Server.Command
 
 spec :: Spec
 spec =

@@ -1,49 +1,45 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
-module Server.Hook where
+module Server.Hook (
+  webhookMessage
+) where
 
-import           Control.Monad              ( when )
-import           Control.Monad.Error.Hoist  ( (<?>) )
-import           Control.Monad.IO.Class     ( liftIO )
-import           Control.Monad.Trans.Except ( runExceptT, throwE )
+import           Control.Monad             ( when )
+import           Control.Monad.Error.Hoist ( (<?>) )
+import           Control.Monad.IO.Class    ( MonadIO, liftIO )
+import           Control.Monad.Reader      hiding ( forM_ )
 
-import           Data.Text                  as T ( Text, empty, null, pack, unpack )
-import qualified Data.Vector                as V ( forM_ )
+import           Data.Text                 ( Text, empty, pack, takeWhile, unpack )
+import           Data.Vector               ( forM_ )
+import           Prelude                   hiding ( null, takeWhile )
 
-import           Servant                    ( Handler )
+import           Servant                   ( Handler )
 
-import           Client.API                 ( getUserInfo, sendHelpMessage, sendTextMessage )
-import           Client.Model               ( Base (Base), GetUserInfoMessageResponse (GetUserInfoMessageResponse),
-                                              SendTextMessage (SendTextMessage),
-                                              SendTextMessageRequest (SendTextMessageRequest), email )
-import           Server.Command             ( Value (Value) )
-import           Server.Except              ( collapseExceptT )
-import           Server.LDAP                ( enrichObject, getUserByUsername, perform )
-import           Server.Model               ( Message (Message, sender_id, text), Messages (Messages) )
+import           Client.API
+import           Client.Model              hiding ( text )
+import           Env
+import           Server.LDAP
+import           Server.Model
 
-webhookMessage :: Text -> Messages -> Handler ()
-webhookMessage token (Messages messages) =
-  V.forM_ messages $ \message@Message {sender_id} -> collapseExceptT $ do
-    result <- liftIO $ reply token message
-    when (T.null result) $ throwE T.empty
+webhookMessage :: Config -> Messages -> Handler ()
+webhookMessage conf@Config {_pageToken} (Messages messages) =
+  forM_ messages $ \message@Message {sender_id} -> do
+    result <- liftIO $ runLdapT conf $ reply message
 
-    _ <- liftIO $ sendTextMessage (Just token) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack result))
-    return T.empty
+    _ <- sendTextMessage (Just _pageToken) (SendTextMessageRequest (Base sender_id) (SendTextMessage $ unpack (either Prelude.id Prelude.id result)))
+    return empty
 
-reply :: Text -> Message -> IO Text
-reply token Message {sender_id, text} = collapseExceptT $ do
+reply :: (MonadIO m, MonadLdap m) => Message -> m Text
+reply Message {sender_id, text} = do
+  Config {_pageToken, _activeUsersContainer} <- ask
+
   when (text == "/help") $ do
-    sendMessageEither <- liftIO $ sendHelpMessage (Just token) (pack sender_id)
+    sendMessageEither <- sendHelpMessage (Just _pageToken) (pack sender_id)
     sendMessageEither <?> "Unable send help message."
-    throwE T.empty
 
-  userInfoEither <- liftIO $ getUserInfo (pack sender_id) (Just token)
-  GetUserInfoMessageResponse {email} <- userInfoEither <?> "Unable to obtain user email."
+  userInfoEither <- getUserInfo (pack sender_id) (Just _pageToken)
+  GetUserInfoMessageResponse {email} <- userInfoEither <?> "Unable to obtain user's email."
 
-  accountEither <- liftIO $ runExceptT $ Value <$> enrichObject "user" getUserByUsername (accountFromEmail email)
-  account <- accountEither <?> "Unable to ontain user full name."
-
-  liftIO $ perform text account >>= return . pack
-  where
-    accountFromEmail email = Value $ takeWhile (/= '@') email
+  perform (pack text) $ takeWhile (/= '@') $ pack email

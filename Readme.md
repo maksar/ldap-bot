@@ -13,4 +13,4 @@ Bot allow to:
 
 * List members of any project group (inside `ProjectGroups` container).
 * Add a new member into a project group. Only if requesting user is a manager (listed in `members` or `msExchCoManagedByLink` field).
-* Add existing member from a project group. Only if requesting user is a manager (listed in `members` or `msExchCoManagedByLink` field).
+* Remove existing member from a project group. Only if requesting user is a manager (listed in `members` or `msExchCoManagedByLink` field).
