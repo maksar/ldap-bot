@@ -243,3 +243,24 @@ makeGroups = Prelude.map (\g@(name, _, _, _) -> (name, analyseGroup g))
         )
       ]
     makeAttribute name value = (Attr name, [BS.pack $ "CN=" ++ value ++ ",OU=company"])
+
+
+-- fake :: Config -> Eff '[LdapEffect, Error Text, Reader Config] a -> Either Text (a, [Text])
+-- fake config = run . runReader config . runError . runWriter . fakeLdap
+
+-- fake1 :: Config -> Eff '[LdapEffect, Error Text, Reader Config] a -> Either Text (a, [Text])
+-- fake1 config = run . runReader config . runError . runWriter . fakeLdap
+
+-- execFake :: Either Text (Text, [Text])
+-- execFake = do
+--   -- c <- readConfig
+--   fake (def {_ldapHost = "dc1.itransition.corp", _ldapPort = 636, _user = "a.shestakov@itransition.com", _password = "", _activeUsersContainer=(Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp"), _projectGroupsContainer=(Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")}) $ perform "/list of Vector.development" "a.shestakov"
+
+-- fakeLdap :: Eff (LdapEffect ': effs) ~> Eff (Writer [Text] ': effs)
+-- fakeLdap = reinterpret $ \case
+--   SearchLdap d m f a -> do
+--     tell [pack "search"]
+--     return [SearchEntry (Dn "user") []]
+--   ModifyLdap d o -> do
+--     tell [pack "modify"]
+--     return ()

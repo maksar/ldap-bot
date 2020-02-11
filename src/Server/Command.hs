@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MonoLocalBinds   #-}
 
 module Server.Command (
   Account,
@@ -17,12 +17,13 @@ module Server.Command (
 )
 where
 
-import           Control.Monad.Except ( MonadError, throwError )
+import           Control.Monad.Freer       ( Eff, Member )
+import           Control.Monad.Freer.Error ( Error, throwError )
 
-import           Data.Text            ( Text, unwords, words )
-import           Prelude              hiding ( unwords, words )
+import           Data.Text                 ( Text, unwords, words )
+import           Prelude                   hiding ( unwords, words )
 
-import           Ldap.Client          ( SearchEntry )
+import           Ldap.Client               ( SearchEntry )
 
 data Account
 data Group
@@ -46,7 +47,7 @@ data GroupKnowledge = Owner
   | Member
   | None
 
-commandFromInput :: MonadError Text m => Text -> m ParsedCommand
+commandFromInput :: Member (Error Text) effs => Text -> Eff effs ParsedCommand
 commandFromInput string = case words string of
   ("/add" : person : "to" : group)      -> return $ Append (Value person) (Value $ unwords group)
   ("/remove" : person : "from" : group) -> return $ Remove (Value person) (Value $ unwords group)

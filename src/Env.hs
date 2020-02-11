@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds    #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
@@ -10,16 +11,17 @@ module Env (
   readConfig
 ) where
 
-import           Control.Monad.Except   ( MonadError, throwError )
-import           Control.Monad.IO.Class ( MonadIO, liftIO )
-import           Data.Default           ( Default, def )
-import           GHC.Generics           ( Generic )
-import           System.Environment     ( lookupEnv )
+import           Control.Monad.Freer
+import           Control.Monad.Freer.Error
 
-import           Data.Text              ( Text, empty, pack, unpack, unwords )
-import           Prelude                hiding ( unwords )
+import           Data.Default              ( Default, def )
+import           GHC.Generics              ( Generic )
+import           System.Environment        ( lookupEnv )
 
-import           Ldap.Client            ( Dn (Dn), PortNumber )
+import           Data.Text                 ( Text, empty, pack, unpack, unwords )
+import           Prelude                   hiding ( unwords )
+
+import           Ldap.Client               ( Dn (Dn), PortNumber )
 
 data Config = Config
   { _ldapHost               :: Text
@@ -38,7 +40,7 @@ instance Default Text where def = empty
 instance Default PortNumber where def = fromIntegral (def :: Int)
 instance Default Dn where def = Dn def
 
-readConfig :: (MonadError Text m, MonadIO m) => m Config
+readConfig :: (Member (Error Text) effs, Member IO effs) => Eff effs Config
 readConfig = Config <$> readEnv "LDABOT_LDAP_HOST"
                     <*> readPort "LDABOT_LDAP_PORT"
                     <*> readPort "LDABOT_PORT"
@@ -49,11 +51,11 @@ readConfig = Config <$> readEnv "LDABOT_LDAP_HOST"
                     <*> (Dn <$> readEnv "LDABOT_USERS_CONTAINER")
                     <*> (Dn <$> readEnv "LDABOT_GROUPS_CONTAINER")
 
-readEnv :: (MonadError Text m, MonadIO m) => Text -> m Text
-readEnv name = liftIO (lookupEnv (unpack name)) >>= \case
+readEnv :: (Member (Error Text) effs, Member IO effs) => Text -> Eff effs Text
+readEnv name = send (lookupEnv (unpack name)) >>= \case
   Nothing    -> throwError $ unwords ["Please set", name, "evironment variable."]
   Just ""    -> throwError $ unwords ["Please set", name, "evironment variable to be not empty."]
   Just value -> return $ pack value
 
-readPort :: (Read a, MonadError Text m, MonadIO m) => Text -> m a
+readPort :: (Read a, Member (Error Text) effs, Member IO effs) => Text -> Eff effs a
 readPort name = read . unpack <$> readEnv name

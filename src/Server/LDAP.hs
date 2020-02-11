@@ -1,63 +1,63 @@
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Server.LDAP
 (
-  MonadLdap(..),
+  LdapEffect(..),
+  runLdap,
   perform,
-  runLdapT,
-  MonadLdapT
 ) where
 
-import           Control.Exception         ( bracket_ )
-import           Control.Monad             ( liftM2, when )
-import           Control.Monad.Error.Hoist ( (<?>) )
-import           Control.Monad.Except      ( ExceptT, MonadError, runExceptT, throwError )
-import           Control.Monad.IO.Class    ( MonadIO, liftIO )
-import           Control.Monad.Reader
+import           Control.Exception          ( bracket_ )
+import           Control.Monad              ( liftM2, when )
+import           Control.Monad.Freer        ( Eff, Member, type (~>), reinterpret, send )
+import           Control.Monad.Freer.Error  ( Error, throwError )
+import           Control.Monad.Freer.Reader ( Reader, ask )
+import           Control.Monad.Freer.TH     ( makeEffect )
 
-import qualified Data.ByteString.Char8     as BS ( pack, unpack )
-import           Data.List                 ( nub, sort )
-import           Data.List.NonEmpty        ( fromList )
-import           Data.Text                 ( Text, drop, dropEnd, pack, splitOn, stripEnd, unlines, unpack, unwords )
-import           Prelude                   hiding ( drop, unlines, unwords )
+import qualified Data.ByteString.Char8      as BS ( pack, unpack )
+import           Data.List                  ( nub, sort )
+import           Data.List.NonEmpty         ( fromList )
+import           Data.Text                  ( Text, drop, dropEnd, pack, splitOn, stripEnd, unlines, unpack, unwords )
+import           Prelude                    hiding ( drop, unlines, unwords )
 
-import           Ldap.Client               ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap, Mod,
-                                             Operation (Add, Delete), Password (Password), Scope (SingleLevel), Search,
-                                             SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope, search,
-                                             with )
+import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap, Mod,
+                                              Operation (Add, Delete), Password (Password), Scope (SingleLevel), Search,
+                                              SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
+                                              search, with )
 
 import           Env
 import           Server.Command
 
-type LdapOperation a = Ldap -> IO a
+data LdapEffect r where
+  SearchLdap :: Dn -> Mod Search -> Filter -> [Attr] -> LdapEffect [SearchEntry]
+  ModifyLdap :: Dn -> [Operation]-> LdapEffect ()
+makeEffect ''LdapEffect
 
-class (MonadError Text m, MonadReader Config m) => MonadLdap m where
-  searchLdap :: Dn -> Mod Search -> Filter -> [Attr] -> m [SearchEntry]
-  modifyLdap :: Dn -> [Operation]-> m ()
+runLdap :: (Member IO effs, Member (Reader Config) effs) => Eff (LdapEffect ': effs) ~> Eff (Error Text ': effs)
+runLdap = reinterpret $ \case
+  SearchLdap d m f a -> withLdap $ \l -> search l d m f a
+  ModifyLdap d o -> withLdap $ \l -> modify l d o
 
-type MonadLdapT m = ReaderT Config (ExceptT Text m)
-
-runLdapT :: Monad m => Config -> MonadLdapT m a -> m (Either Text a)
-runLdapT config m = runExceptT $ runReaderT m config
-
-instance MonadLdap (MonadLdapT IO) where
-  searchLdap base searchScope searchFilter attrs = withLdap $ \ldap -> search ldap base searchScope searchFilter attrs
-  modifyLdap base operations = withLdap $ \ldap -> modify ldap base operations
-
-withLdap :: (MonadLdap m, MonadIO m) => LdapOperation b -> m b
+withLdap :: (Member IO effs, Member (Reader Config) effs, Member (Error Text) effs) => (Ldap -> IO b) -> Eff effs b
 withLdap operation = do
-  result <- do
-    Config {_ldapHost, _ldapPort, _user, _password} <- ask
-    liftIO $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)
-  result <?> "Unable to perform Active Directory request."
+  Config {_ldapHost, _ldapPort, _user, _password} <- ask
+  (send $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)) >>= \case
+    Left _  -> throwError $ pack "Unable to perform Active Directory request."
+    Right value -> return value
   where
     login ldap user password = bind ldap (Dn user) $ Password $ BS.pack $ unpack password
     tls host = Tls (unpack host) insecureTlsSettings
     prepend work before arg = bracket_ (before arg) (return ()) (work arg)
 
-perform :: MonadLdap m => Text -> Text -> m Text
+perform ::(Member (Reader Config) effs, Member (Error Text) effs, Member LdapEffect effs) => Text -> Text -> Eff effs Text
 perform input email = do
   account <- enrichAccount $ Value email
   command <- commandFromInput input
@@ -65,13 +65,13 @@ perform input email = do
   confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
   executeOperation confirmedOperation
 
-enrichCommand :: MonadLdap m => ParsedCommand -> m EnrichedCommand
+enrichCommand :: (Member (Reader Config) effs, Member (Error Text) effs, Member LdapEffect effs) => ParsedCommand -> Eff effs EnrichedCommand
 enrichCommand command
   | (Append account group) <- command = liftM2 Append (enrichAccount account) (enrichGroup group)
-  | (Remove account group) <- command = liftM2 Remove (enrichAccount account) (enrichGroup group)
+  | (Remove account group) <- command = liftM2 Remove (enrichAccount account) (enrichGroup  group)
   | (List group) <- command = List <$> enrichGroup group
 
-enrichAccount :: MonadLdap m => Parsed Account -> m (Enriched Account)
+enrichAccount :: (Member (Reader Config) effs, Member (Error Text) effs, Member LdapEffect effs) => Parsed Account -> Eff effs (Enriched Account)
 enrichAccount (Value account) = validateObject "User" =<< do
   Config {_activeUsersContainer} <- ask
   searchLdap
@@ -80,7 +80,7 @@ enrichAccount (Value account) = validateObject "User" =<< do
     (And $ fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack (unpack account)])
     [Attr "dn"]
 
-enrichGroup :: MonadLdap m => Parsed Group -> m (Enriched Group)
+enrichGroup :: (Member (Reader Config) effs, Member (Error Text) effs, Member LdapEffect effs) => Parsed Group -> Eff effs (Enriched Group)
 enrichGroup (Value group) = validateObject "Group" =<< do
   Config {_projectGroupsContainer} <- ask
   searchLdap
@@ -89,12 +89,12 @@ enrichGroup (Value group) = validateObject "Group" =<< do
     (And $ fromList [Attr "objectClass" := "Group", Attr "cn" := BS.pack (unpack group)])
     [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
-validateObject :: MonadError Text m => Text -> [SearchEntry] -> m (Enriched b)
+validateObject :: Member (Error Text) effs => Text -> [SearchEntry] -> Eff effs (Enriched b)
 validateObject object list = do
   when (null list) $ throwError $ unwords [object, "was not found."]
   return $ Value $ head list
 
-executeOperation :: MonadLdap m => ConfirmedCommand -> m Text
+executeOperation :: Member LdapEffect effs => ConfirmedCommand -> Eff effs Text
 executeOperation (Confirmed command)
   | (Append (Value (SearchEntry (Dn account) _)) (Value (SearchEntry group _))) <- command = modifyGroup Add group account
   | (Remove (Value (SearchEntry (Dn account) _)) (Value (SearchEntry group _))) <- command = modifyGroup Delete group account
@@ -104,14 +104,14 @@ executeOperation (Confirmed command)
       modifyLdap group [operation (Attr "member") [BS.pack $ unpack account]]
       return "OK"
 
-operationByCommandAndKnowledge :: MonadError Text m => EnrichedCommand -> GroupKnowledge -> m ConfirmedCommand
+operationByCommandAndKnowledge :: Member (Error Text) effs => EnrichedCommand -> GroupKnowledge -> Eff effs ConfirmedCommand
 operationByCommandAndKnowledge c@(List _) _ = return $ Confirmed c
-operationByCommandAndKnowledge _ Member = throwError "You are not an owner of the group, just a member. So you cannot manage it."
-operationByCommandAndKnowledge _ None = throwError "You are neither an owner nor a member of the group. So you cannot manage it."
+operationByCommandAndKnowledge _ Member = throwError $ pack "You are not an owner of the group, just a member. So you cannot manage it."
+operationByCommandAndKnowledge _ None = throwError $ pack "You are neither an owner nor a member of the group. So you cannot manage it."
 operationByCommandAndKnowledge c@(Append (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
-  if elem dn $ members attList then throwError "User is already in a group." else return $ Confirmed c
+  if elem dn $ members attList then throwError (pack "User is already in a group.") else return $ Confirmed c
 operationByCommandAndKnowledge c@(Remove (Value (SearchEntry dn _)) (Value (SearchEntry _ attList))) Owner =
-  if notElem dn $ members attList then throwError "There is no such user in a group." else return $ Confirmed c
+  if notElem dn $ members attList then throwError (pack "There is no such user in a group.") else return $ Confirmed c
 
 groupKnowledgeOnRequester :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledgeOnRequester (Value (SearchEntry accountDn _)) (Value (SearchEntry _ groupAttrList)) =
