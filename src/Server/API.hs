@@ -10,23 +10,16 @@ module Server.API (
 import           Data.Text     ( Text )
 
 import           Servant       ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy),
-                                 QueryParam, ReqBody, Server, serve )
+                                 QueryParam', ReqBody, Required, Strict, serve )
 
+import           API
 import           Env
 import           Server.Hook
 import           Server.Model
 import           Server.Verify
 
-type WebHookAPI = QueryParam "hub.verify_token" Text
-  :> QueryParam "hub.challenge" Text :> Get '[PlainText] Text
-  :<|> ReqBody '[JSON] Messages :> Post '[JSON] ()
-
-webHookAPI :: Proxy WebHookAPI
-webHookAPI = Proxy
-
-server :: Config -> Server WebHookAPI
-server config =
-  webhookVerify config :<|> webhookMessage config
+type WebHookAPI = RequiredParam "hub.verify_token" Text :> RequiredParam "hub.challenge" Text :> Get '[PlainText] Text
+             :<|> ReqBody '[JSON] Messages :> Post '[JSON] ()
 
 app :: Config -> Application
-app config = serve webHookAPI $ server config
+app config = serve (Proxy :: Proxy WebHookAPI) $ webhookVerify config :<|> webhookMessage config

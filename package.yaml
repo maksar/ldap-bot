@@ -31,8 +31,7 @@ dependencies:
 - wai-extra
 - warp
 
-- mtl
-- hoist-error
+- freer-simple
 
 - hspec
 - validity
@@ -43,8 +42,6 @@ dependencies:
 - genvalidity-hspec
 - QuickCheck
 - silently
-
-- freer-simple
 tests:
   ldabot-test:
     source-dirs: test
