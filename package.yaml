@@ -43,6 +43,8 @@ dependencies:
 - genvalidity-hspec
 - QuickCheck
 - silently
+
+- freer-simple
 tests:
   ldabot-test:
     source-dirs: test
