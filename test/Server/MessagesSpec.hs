@@ -4,7 +4,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns     #-}
 
-module Server.MessagesSpec (spec) where
+module Server.MessagesSpec (
+  spec
+) where
 
 import           Data.GenValidity           ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
 import           Data.GenValidity.Vector    ()

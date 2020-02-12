@@ -1,40 +1,42 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeOperators              #-}
 
-module Server.LDAPSpec (spec) where
+module Server.LDAPSpec (
+  spec
+) where
 
-import           Control.Monad.Reader  ( MonadReader, ReaderT, ask, asks, lift, runReaderT )
-import           Control.Monad.Writer  ( MonadWriter, Writer, runWriter, tell )
-import           Data.Default          ( def )
+import           Control.Monad.Freer        ( Eff, Member, type (~>), interpret, reinterpret, run )
+import           Control.Monad.Freer.Error  ( Error, runError )
+import           Control.Monad.Freer.Reader ( Reader, ask, runReader )
+import           Control.Monad.Freer.Writer ( Writer, runWriter, tell )
 
-import qualified Data.ByteString.Char8 as BS ( pack, unpack )
-import           Data.List.NonEmpty    ( NonEmpty ((:|)) )
-import           Data.Maybe            ( fromJust, fromMaybe )
-import qualified Data.Text             as T ( Text, concat, intercalate, pack, unpack )
+import           Data.Default               ( def )
+
+import qualified Data.ByteString.Char8      as BS ( pack, unpack )
+import           Data.List.NonEmpty         ( NonEmpty ((:|)) )
+import           Data.Maybe                 ( fromJust, fromMaybe )
+import           Data.Text                  ( Text, concat, intercalate, pack, unpack )
+import           Prelude                    hiding ( concat )
 
 import           Env
-import           Ldap.Client           ( Attr (..), AttrList, Dn (..), Filter (..), Mod, Operation (..), Search,
-                                         SearchEntry (..) )
+import           Ldap.Client                ( Attr (..), AttrList, Dn (..), Filter (..), Mod, Operation (..), Search,
+                                              SearchEntry (..) )
 import           Server.LDAP
 
-import           Test.Hspec            ( Expectation, Spec, context, describe, it, shouldBe )
+import           Test.Hspec                 ( Expectation, Spec, context, describe, it, shouldBe )
 
-test :: T.Text -> [T.Text] -> [(T.Text, [String], [String], [String])] -> T.Text -> (Either T.Text T.Text, [String]) -> Expectation
+test :: Text -> [Text] -> [(Text, [String], [String], [String])] -> Text -> (Either Text Text, [Text]) -> Expectation
 test input users groups requester (result, messages) =
-  logTestM (makeLdap config) config (perform input requester) `shouldBe`
-    (result, ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=" ++ T.unpack requester ++ ") and attributes (dn)"] <> messages)
-  where
-    config = def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" }
-    makeLdap Config {_activeUsersContainer, _projectGroupsContainer} =
-      LdapMock
-      { _searchLdap = \_config (Dn base) _mod searchFilter attributes -> do
-        tell ["Searching in " ++ T.unpack base ++ " with filter (" ++ showFilter searchFilter ++ ") and attributes (" ++ T.unpack (showAttributes attributes) ++ ")"]
-        let container = fromJust $ lookup (Dn base) [(_activeUsersContainer, makeUsers users), (_projectGroupsContainer, makeGroups groups)]
-        return $ fromMaybe [] $ lookup (extractFilter searchFilter) container
-      , _modifyLdap = \_config (Dn base) [operation] -> tell ["Modifying in " ++ T.unpack base ++ " with operation " ++ showOperation operation]
-      }
+  fake def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } users groups (perform input requester) `shouldBe`
+    (result, [pack $ "Searching in usersContainer with filter (objectClass=person, sAMAccountName=" ++ unpack requester ++ ") and attributes (dn)"] <> messages)
 
 spec :: Spec
 spec =
@@ -185,54 +187,47 @@ spec =
               ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
               ,"Modifying in CN=group,OU=company with operation Delete CN=a.user,OU=company from member"])
 
-data LdapMock m = LdapMock
-  { _searchLdap :: Config -> Dn -> Mod Search -> Filter -> [Attr] -> m [SearchEntry]
-  , _modifyLdap :: Config -> Dn -> [Operation] -> m ()
-  }
+fake :: Config -> [Text] -> [(Text, [String], [String], [String])] -> Eff '[LdapEffect, Reader Config, Error Text, Writer [Text]] Text -> (Either Text Text, [Text])
+fake config users groups = run . runWriter . runError . runReader config . fakeLdap (makeUsers users) (makeGroups groups)
 
-newtype TestM log a = TestM (ReaderT (LdapMock (TestM log)) (Writer log) a)
-  deriving (Functor, Applicative, Monad, MonadReader (LdapMock (TestM log)), MonadWriter log)
+fakeLdap :: (Member (Writer [Text]) effs, Member (Reader Config) effs) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Eff (LdapEffect ': effs) ~> Eff effs
+fakeLdap users groups = interpret $ \case
+  SearchLdap (Dn base) _mod searchFilter attributes -> do
+    Config {_activeUsersContainer, _projectGroupsContainer} <- ask
+    tell [pack $ "Searching in " ++ unpack base ++ " with filter (" ++ showFilter searchFilter ++ ") and attributes (" ++ unpack (showAttributes attributes) ++ ")"]
+    let container = fromJust $ lookup (Dn base) [(_activeUsersContainer, users), (_projectGroupsContainer, groups)]
+    return $ fromMaybe [] $ lookup (extractFilter searchFilter) container
 
-instance Monoid log => MonadLdap (MonadLdapT (TestM log)) where
-  searchLdap a b c d = do
-    config <- ask
-    lift $ lift $ asks _searchLdap >>= \f -> f config a b c d
-
-  modifyLdap a b = do
-    config <- ask
-    lift $ lift $ asks _modifyLdap >>= \f -> f config a b
-
-logTestM :: Monoid log => LdapMock (TestM log) -> Config -> MonadLdapT (TestM log) a -> (Either T.Text a, log)
-logTestM inst config m =
-  let (TestM mock) = runLdapT config m
-  in runWriter (runReaderT mock inst)
+  ModifyLdap (Dn base) [operation] -> do
+    tell [pack $ "Modifying in " ++ unpack base ++ " with operation " ++ showOperation operation]
+    return ()
 
 showFilter :: Filter -> String
-showFilter (Attr attr := value)    = T.unpack attr ++ "=" ++ BS.unpack value
+showFilter (Attr attr := value)    = unpack attr ++ "=" ++ BS.unpack value
 showFilter (And (first :| [rest])) = showFilter first ++ ", " ++ showFilter rest
 
-extractFilter :: Filter -> T.Text
-extractFilter (And (Attr "objectClass" := "person" :| [Attr "sAMAccountName" := value])) = T.pack $ BS.unpack value
-extractFilter (And (Attr "objectClass" := "Group" :| [Attr "cn" := value]))              = T.pack $ BS.unpack value
+extractFilter :: Filter -> Text
+extractFilter (And (Attr "objectClass" := "person" :| [Attr "sAMAccountName" := value])) = pack $ BS.unpack value
+extractFilter (And (Attr "objectClass" := "Group" :| [Attr "cn" := value]))              = pack $ BS.unpack value
 
 showOperation :: Operation -> String
-showOperation (Delete (Attr attr) [value]) = "Delete " ++ BS.unpack value ++ " from " ++ T.unpack attr
-showOperation (Add (Attr attr) [value])    = "Add " ++ BS.unpack value ++ " to " ++ T.unpack attr
+showOperation (Delete (Attr attr) [value]) = "Delete " ++ BS.unpack value ++ " from " ++ unpack attr
+showOperation (Add (Attr attr) [value])    = "Add " ++ BS.unpack value ++ " to " ++ unpack attr
 
-showAttributes :: [Attr] -> T.Text
-showAttributes = T.intercalate ", " . Prelude.map (\(Attr attr) -> attr)
+showAttributes :: [Attr] -> Text
+showAttributes = intercalate ", " . Prelude.map (\(Attr attr) -> attr)
 
-makeSearchEntry :: T.Text -> AttrList [] -> SearchEntry
+makeSearchEntry :: Text -> AttrList [] -> SearchEntry
 makeSearchEntry dn = SearchEntry (Dn (makeCn dn))
   where
-    makeCn name = T.concat ["CN=", name, ",OU=company"]
+    makeCn name = concat ["CN=", name, ",OU=company"]
 
-makeUsers :: [T.Text] -> [(T.Text, [SearchEntry])]
+makeUsers :: [Text] -> [(Text, [SearchEntry])]
 makeUsers = Prelude.map (\u -> (u, analyseUser u))
   where
     analyseUser name = [makeSearchEntry name []]
 
-makeGroups :: [(T.Text, [String], [String], [String])] -> [(T.Text, [SearchEntry])]
+makeGroups :: [(Text, [String], [String], [String])] -> [(Text, [SearchEntry])]
 makeGroups = Prelude.map (\g@(name, _, _, _) -> (name, analyseGroup g))
   where
     analyseGroup (name, members, managers, coManagers) =
@@ -243,24 +238,3 @@ makeGroups = Prelude.map (\g@(name, _, _, _) -> (name, analyseGroup g))
         )
       ]
     makeAttribute name value = (Attr name, [BS.pack $ "CN=" ++ value ++ ",OU=company"])
-
-
--- fake :: Config -> Eff '[LdapEffect, Error Text, Reader Config] a -> Either Text (a, [Text])
--- fake config = run . runReader config . runError . runWriter . fakeLdap
-
--- fake1 :: Config -> Eff '[LdapEffect, Error Text, Reader Config] a -> Either Text (a, [Text])
--- fake1 config = run . runReader config . runError . runWriter . fakeLdap
-
--- execFake :: Either Text (Text, [Text])
--- execFake = do
---   -- c <- readConfig
---   fake (def {_ldapHost = "dc1.itransition.corp", _ldapPort = 636, _user = "a.shestakov@itransition.com", _password = "", _activeUsersContainer=(Dn "OU=Active,OU=Users,OU=Itransition,DC=itransition,DC=corp"), _projectGroupsContainer=(Dn "OU=ProjectGroups,OU=Groups,OU=Itransition,DC=itransition,DC=corp")}) $ perform "/list of Vector.development" "a.shestakov"
-
--- fakeLdap :: Eff (LdapEffect ': effs) ~> Eff (Writer [Text] ': effs)
--- fakeLdap = reinterpret $ \case
---   SearchLdap d m f a -> do
---     tell [pack "search"]
---     return [SearchEntry (Dn "user") []]
---   ModifyLdap d o -> do
---     tell [pack "modify"]
---     return ()

@@ -1,3 +1,11 @@
+module Client.FacebookSpec (
+  spec
+) where
+
+import           Test.Hspec ( Spec )
+
+spec :: Spec
+spec = return ()
 -- fake :: Config -> Eff '[FacebookEffect, Error Text, Reader Config] a -> Either Text (a, [Text])
 -- fake config = run . runReader config . runError . runWriter . fakeFacebook
 

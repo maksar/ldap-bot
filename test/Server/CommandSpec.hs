@@ -1,22 +1,30 @@
-module Server.CommandSpec (spec) where
+module Server.CommandSpec (
+  spec
+) where
 
-import           Test.Hspec           ( Spec, describe, it, shouldReturn )
+import           Control.Monad.Freer       ( run )
+import           Control.Monad.Freer.Error ( runError )
 
-import           Control.Monad.Except ( runExceptT )
+import           Data.Text
 
 import           Server.Command
+
+import           Test.Hspec                ( Spec, describe, it, shouldBe )
 
 spec :: Spec
 spec =
   describe "Command parsing" $ do
+    it "fails to parse unknown command" $
+      parse "/unknown command" `shouldBe` Left "Unknown command: /unknown command"
+
     it "parsed add command" $
-      runExceptT (commandFromInput "/add username to group with spaces") `shouldReturn` Right (Append (Value "username") (Value "group with spaces"))
+      parse "/add username to group with spaces" `shouldBe` Right (Append (Value "username") (Value "group with spaces"))
 
     it "parsed remove command" $
-      runExceptT (commandFromInput "/remove username from group with spaces") `shouldReturn` Right (Remove (Value "username") (Value "group with spaces"))
+      parse "/remove username from group with spaces" `shouldBe` Right (Remove (Value "username") (Value "group with spaces"))
 
     it "parsed list command" $
-      runExceptT (commandFromInput "/list of group with spaces") `shouldReturn` Right (List (Value "group with spaces"))
+      parse "/list of group with spaces" `shouldBe` Right (List (Value "group with spaces"))
 
-    it "fails to parse unknown command" $
-      runExceptT (commandFromInput "/unknown command") `shouldReturn` Left "Unknown command: /unknown command"
+parse :: Text -> Either Text ParsedCommand
+parse = run . runError . commandFromInput

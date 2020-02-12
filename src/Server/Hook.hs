@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 module Server.Hook (
   webhookMessage
@@ -10,18 +11,20 @@ import           Control.Monad.Freer.Reader ( Reader, runReader )
 import           Control.Monad.IO.Class     ( liftIO )
 
 import           Data.Text                  ( Text )
-import           Data.Vector                ( forM_ )
+import           Data.Vector                ( Vector, mapM )
+import           Prelude                    hiding ( mapM )
 
 import           Servant                    ( Handler )
 
 import           Bot
 import           Client.Facebook
+import           Client.Model
 import           Env
 import           Server.LDAP
 import           Server.Model
 
-webhookMessage :: Config -> Messages -> Handler ()
-webhookMessage config (Messages inputs) = forM_ inputs $ liftIO . execute config . bot
+webhookMessage :: Config -> Messages -> Handler (Vector (Either Text SendTextMessageResponse))
+webhookMessage config (Messages inputs) = mapM (liftIO . execute config . bot) inputs
 
 execute :: Config -> Eff '[LdapEffect, FacebookEffect, Error Text, Reader Config, IO] a -> IO (Either Text a)
 execute config = runM . runReader config . runError . subsume . runFacebook . subsume . runLdap

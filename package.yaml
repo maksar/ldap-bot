@@ -12,6 +12,7 @@ default-extensions:
 dependencies:
 - base >= 4.7 && < 5
 
+- freer-simple
 - aeson
 - data-default
 
@@ -30,18 +31,6 @@ dependencies:
 
 - wai-extra
 - warp
-
-- freer-simple
-
-- hspec
-- validity
-- validity-vector
-- genvalidity
-- genvalidity-vector
-- genvalidity-text
-- genvalidity-hspec
-- QuickCheck
-- silently
 tests:
   ldabot-test:
     source-dirs: test
@@ -52,8 +41,41 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ldabot
+
+    - hspec
+    - hspec-discover
+    - validity
+    - validity-vector
+    - genvalidity
+    - genvalidity-vector
+    - genvalidity-text
+    - genvalidity-hspec
+    - QuickCheck
+    - silently
 executables:
+  ldabot-prod:
+    when:
+    - condition: os(darwin)
+      buildable: false
+    source-dirs: app
+    main: Main.hs
+    ghc-options:
+    - -static
+    - -optl-static
+    - -optl-pthread
+    - -fPIC
+    - -optc-Os
+    - -O2
+    - -threaded
+    - -rtsopts=none
+    - -with-rtsopts=-N
+    - -Wall
+    dependencies:
+    - ldabot
   ldabot-exe:
+    when:
+    - condition: os(linux)
+      buildable: false
     source-dirs: app
     main: Main.hs
     ghc-options:
