@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: hoist-error-0.2.1.0@sha256:f238a27a593ec0c9b4f5263adf917b7c3b76daffed2398d7520e43e6515169f2,1221
-    pantry-tree:
-      size: 281
-      sha256: a8fd6aafc02e04b20e9697c27a62472815e3658237cc490deb71b32373305327
-  original:
-    hackage: hoist-error-0.2.1.0
-- completed:
     hackage: ldap-client-0.4.0@sha256:48f6e03d8f812bd24e2601497ffe9c8a78907fa2266ba05abeefdfe99221617d,2208
     pantry-tree:
       size: 1705

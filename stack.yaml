@@ -40,7 +40,6 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-- hoist-error-0.2.1.0
 - ldap-client-0.4.0
 
 # Override default flag values for local packages and extra-deps
@@ -66,3 +65,6 @@ extra-deps:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+# docker:
+#   enable: true
+#     image: utdemir/ghc-musl:v4-libgmp-ghc865

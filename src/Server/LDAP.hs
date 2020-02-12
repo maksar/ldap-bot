@@ -57,7 +57,7 @@ withLdap operation = do
     tls host = Tls (unpack host) insecureTlsSettings
     prepend work before arg = bracket_ (before arg) (return ()) (work arg)
 
-perform ::(Member (Reader Config) effs, Member (Error Text) effs, Member LdapEffect effs) => Text -> Text -> Eff effs Text
+perform ::(Member (Reader Config) effs, Member LdapEffect effs, Member (Error Text) effs) => Text -> Text -> Eff effs Text
 perform input email = do
   account <- enrichAccount $ Value email
   command <- commandFromInput input

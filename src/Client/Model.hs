@@ -30,7 +30,7 @@ data SendTextMessageResponse = SendTextMessageResponse
   { recipient_id :: String
   , message_id   :: String
   }
-  deriving (Eq, Show, Generic, FromJSON)
+  deriving (Eq, Show, Generic, FromJSON, ToJSON)
 
 newtype GetUserInfoMessageResponse = GetUserInfoMessageResponse
   { email :: String

@@ -1,27 +1,26 @@
-FROM haskell:8.6.5 as haskell
+FROM utdemir/ghc-musl:v4-libgmp-ghc865 as haskell
 
 RUN mkdir /app
 WORKDIR /app
 
-ADD stack.yaml .
-ADD stack.yaml.lock .
-ADD package.yaml .
-
-RUN mkdir src
-RUN mkdir app
-RUN mkdir test
-
-RUN stack setup
-RUN stack build || true
+RUN cabal update
+ADD ldabot.cabal .
+RUN cabal build || true
 
 ADD . .
+RUN cabal new-install
+RUN strip --strip-all /root/.cabal/bin/ldabot-prod
 
-RUN stack install
+FROM alpine as upx
 
-FROM gcr.io/distroless/base
-COPY --from=haskell /lib/x86_64-linux-gnu/libz* /lib/x86_64-linux-gnu/
-COPY --from=haskell /usr/lib/x86_64-linux-gnu/libgmp* /usr/lib/x86_64-linux-gnu/
+RUN apk add -u upx
 
-COPY --from=haskell /root/.local/bin/ldabot-exe /app
+COPY --from=haskell /root/.cabal/bin/ldabot-prod /app
+RUN upx --best /app
+
+FROM scratch
+
+COPY --from=gcr.io/distroless/base /etc/ssl /etc/ssl
+COPY --from=upx /app /app
 
 ENTRYPOINT ["/app"]
