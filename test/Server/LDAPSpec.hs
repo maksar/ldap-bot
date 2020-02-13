@@ -26,6 +26,7 @@ import           Data.Maybe                 ( fromJust, fromMaybe )
 import           Data.Text                  ( Text, concat, intercalate, pack, unpack )
 import           Prelude                    hiding ( concat )
 
+import           Bot
 import           Env
 import           Ldap.Client                ( Attr (..), AttrList, Dn (..), Filter (..), Mod, Operation (..), Search,
                                               SearchEntry (..) )
@@ -35,7 +36,7 @@ import           Test.Hspec                 ( Expectation, Spec, context, descri
 
 test :: Text -> [Text] -> [(Text, [String], [String], [String])] -> Text -> (Either Text Text, [Text]) -> Expectation
 test input users groups requester (result, messages) =
-  fake def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } users groups (perform input requester) `shouldBe`
+  fake def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } users groups (ldapProgram input requester) `shouldBe`
     (result, [pack $ "Searching in usersContainer with filter (objectClass=person, sAMAccountName=" ++ unpack requester ++ ") and attributes (dn)"] <> messages)
 
 spec :: Spec

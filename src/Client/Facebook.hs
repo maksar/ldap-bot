@@ -16,8 +16,8 @@ module Client.Facebook (
 ) where
 
 
-import           Control.Monad.Freer        ( Eff, Member, type (~>), reinterpret, send )
-import           Control.Monad.Freer.Error  ( Error, throwError )
+import           Control.Monad.Freer        ( Eff, LastMember, Member, type (~>), reinterpret, send )
+import           Control.Monad.Freer.Error  ( Error, runError, throwError )
 import           Control.Monad.Freer.Reader ( Reader, ask )
 import           Control.Monad.Freer.TH     ( makeEffect )
 
@@ -39,7 +39,7 @@ data FacebookEffect r where
 
 makeEffect ''FacebookEffect
 
-runFacebook :: (Member IO effs, Member (Reader Config) effs) => Eff (FacebookEffect ': effs) ~> Eff (Error Text ': effs)
+runFacebook :: (LastMember IO effs, Member (Reader Config) effs) => Eff (FacebookEffect ': effs) ~> Eff (Error Text ': effs)
 runFacebook = reinterpret $ \case
   SendText message -> sendTextMessage message >>= orElse "Unable to send message to Workplace."
   GetInfo account -> getUserInfo account >>= orElse "Unable to get user information from Workplace."
@@ -53,7 +53,7 @@ sendTextMessage :: (Member IO effs, Member (Reader Config) effs) => SendTextMess
 sendTextMessage request = do
   Config {_pageToken} <- ask
   send $ do
-    putStrLn $ "Sending " ++ show request -- TODO use Trace
+    putStrLn $ "Sending " ++ show request
     manager <- newManager tlsManagerSettings
     runFacebookAPI manager $ sendTextMessage_ _pageToken request
 
