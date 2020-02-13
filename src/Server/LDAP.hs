@@ -8,58 +8,60 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module Server.LDAP where
--- (
---   LdapEffect(..),
---   -- runLdap,
---   -- runLdapPartially,
---   perform,
---   execute
--- ) where
+module Server.LDAP
+(
+  LdapEffect(..),
+  runLdap,
+  ldapProgram
+) where
 
-import           Control.Exception            ( bracket_ )
-import           Control.Monad                ( liftM2, when )
-import           Control.Monad.Freer          ( Eff, LastMember, Member, type (~>), reinterpret, send )
-import           Control.Monad.Freer.Error    ( Error, runError, throwError )
-import           Control.Monad.Freer.Internal ( handleRelay )
-import           Control.Monad.Freer.Reader   ( Reader, ask )
-import           Control.Monad.Freer.TH       ( makeEffect )
+import           Control.Exception          ( bracket_ )
+import           Control.Monad              ( liftM2, when )
+import           Control.Monad.Freer        ( Eff, Member, type (~>), reinterpret, send )
+import           Control.Monad.Freer.Error  ( Error, throwError )
+import           Control.Monad.Freer.Reader ( Reader, ask )
+import           Control.Monad.Freer.TH     ( makeEffect )
 
-import qualified Data.ByteString.Char8        as BS ( pack, unpack )
-import           Data.List                    ( nub, sort )
-import           Data.List.NonEmpty           ( fromList )
-import           Data.Text                    ( Text, drop, dropEnd, pack, splitOn, stripEnd, unlines, unpack, unwords )
-import           Prelude                      hiding ( drop, unlines, unwords )
+import qualified Data.ByteString.Char8      as BS ( pack, unpack )
+import           Data.List                  ( nub, sort )
+import           Data.List.NonEmpty         ( fromList )
+import           Data.Text                  ( Text, drop, dropEnd, pack, splitOn, stripEnd, unlines, unpack, unwords )
+import           Prelude                    hiding ( drop, unlines, unwords )
 
-import           Ldap.Client                  ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap,
-                                                Mod, Operation (Add, Delete), Password (Password), Scope (SingleLevel),
-                                                Search, SearchEntry (SearchEntry), bind, insecureTlsSettings, modify,
-                                                scope, search, with )
+import           Ldap.Client                ( Attr (Attr), AttrList, Dn (Dn), Filter ((:=), And), Host (Tls), Ldap, Mod,
+                                              Operation (Add, Delete), Password (Password), Scope (SingleLevel), Search,
+                                              SearchEntry (SearchEntry), bind, insecureTlsSettings, modify, scope,
+                                              search, with )
 
 import           Env
+import           Error
 import           Server.Command
 
 data LdapEffect r where
   SearchLdap :: Dn -> Mod Search -> Filter -> [Attr] -> LdapEffect [SearchEntry]
   ModifyLdap :: Dn -> [Operation]-> LdapEffect ()
+
 makeEffect ''LdapEffect
 
-runLdap :: (Member IO effs, Member (Reader Config) effs) => Eff (LdapEffect ': effs) ~> Eff (Error Text ': effs)
+ldapProgram :: (Member (Reader Config) effs, Member LdapEffect effs, Member (Error Text) effs) => Text -> Text -> Eff effs Text
+ldapProgram input email = do
+  account <- enrichAccount $ Value email
+  command <- commandFromInput input
+  enrichedCommand <- enrichCommand command
+  confirmedOperation <- operationByCommandAndKnowledge enrichedCommand $ groupKnowledgeOnRequester account $ groupFromCommand enrichedCommand
+  executeOperation confirmedOperation
+
+runLdap :: (Member IO effs, Member (Reader Config) effs) => Eff (LdapEffect : effs) ~> Eff (Error Text : effs)
 runLdap = reinterpret $ \case
   SearchLdap d m f a -> withLdap $ \l -> search l d m f a
   ModifyLdap d o -> withLdap $ \l -> modify l d o
 
-runErrorCollapsing :: Eff (Error e : effs) e -> Eff effs e
-runErrorCollapsing x = do
-  result <- runError x
-  return $ either Prelude.id Prelude.id result
-
 withLdap :: (Member IO effs, Member (Reader Config) effs, Member (Error Text) effs) => (Ldap -> IO b) -> Eff effs b
 withLdap operation = do
   Config {_ldapHost, _ldapPort, _user, _password} <- ask
-  (send $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)) >>= \case
-    Left _  -> throwError $ pack "Unable to perform Active Directory request."
-    Right value -> return value
+
+  result <- send $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)
+  result <?> "Unable to perform Active Directory request."
   where
     login ldap user password = bind ldap (Dn user) $ Password $ BS.pack $ unpack password
     tls host = Tls (unpack host) insecureTlsSettings

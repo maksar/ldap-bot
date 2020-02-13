@@ -1,36 +1,37 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE NamedFieldPuns   #-}
-{-# LANGUAGE QuasiQuotes      #-}
-{-# LANGUAGE TemplateHaskell  #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Client.Facebook (
   FacebookEffect(..),
   runFacebook,
-  sendText,
-  getInfo,
-  sendHelp
+  facebookProgram
 ) where
 
 
 import           Control.Monad.Freer        ( Eff, LastMember, Member, type (~>), reinterpret, send )
-import           Control.Monad.Freer.Error  ( Error, runError, throwError )
+import           Control.Monad.Freer.Error  ( Error, throwError )
 import           Control.Monad.Freer.Reader ( Reader, ask )
 import           Control.Monad.Freer.TH     ( makeEffect )
 
-import           Data.Text                  ( Text, pack )
+import           Data.Text                  ( Text, pack, takeWhile, unpack )
 import qualified NeatInterpolation          as I ( text )
+import           Prelude                    hiding ( takeWhile )
 
 import           Network.HTTP.Client        ( managerModifyRequest, newManager, requestHeaders )
 import           Network.HTTP.Client.TLS    ( tlsManagerSettings )
 import           Servant.Client             ( ClientError )
 
 import           Client.API
-import           Client.Model
+import           Client.Model               hiding ( text )
 import           Env
+import           Server.Model
 
 data FacebookEffect r where
   SendText :: SendTextMessageRequest -> FacebookEffect SendTextMessageResponse
@@ -39,7 +40,17 @@ data FacebookEffect r where
 
 makeEffect ''FacebookEffect
 
-runFacebook :: (LastMember IO effs, Member (Reader Config) effs) => Eff (FacebookEffect ': effs) ~> Eff (Error Text ': effs)
+facebookProgram :: (Member (Reader Config) effs, Member FacebookEffect effs) => (Text -> Text -> Eff effs Text) -> Message -> Eff effs SendTextMessageResponse
+facebookProgram ldapWorker Message {sender_id, text} =
+  if text == "/help" then sendHelp (pack sender_id)
+  else do
+    GetUserInfoMessageResponse {email} <- getInfo (pack sender_id)
+
+    result <- ldapWorker (pack text) $ takeWhile (/= '@') $ pack email
+
+    sendText $ SendTextMessageRequest (Base sender_id) $ SendTextMessage $ unpack result
+
+runFacebook :: (LastMember IO effs, Member (Reader Config) effs) => Eff (FacebookEffect : effs) ~> Eff (Error Text : effs)
 runFacebook = reinterpret $ \case
   SendText message -> sendTextMessage message >>= orElse "Unable to send message to Workplace."
   GetInfo account -> getUserInfo account >>= orElse "Unable to get user information from Workplace."
