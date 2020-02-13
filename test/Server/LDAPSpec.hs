@@ -1,13 +1,12 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE NoImplicitPrelude          #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Server.LDAPSpec (
   spec
@@ -26,10 +25,11 @@ import           Data.Maybe                 ( fromJust, fromMaybe )
 import           Data.Text                  ( Text, concat, intercalate, pack, unpack )
 import           Prelude                    hiding ( concat )
 
-import           Bot
-import           Env
 import           Ldap.Client                ( Attr (..), AttrList, Dn (..), Filter (..), Mod, Operation (..), Search,
                                               SearchEntry (..) )
+
+import           Bot
+import           Env
 import           Server.LDAP
 
 import           Test.Hspec                 ( Expectation, Spec, context, describe, it, shouldBe )
@@ -191,7 +191,7 @@ spec =
 fake :: Config -> [Text] -> [(Text, [String], [String], [String])] -> Eff '[LdapEffect, Reader Config, Error Text, Writer [Text]] Text -> (Either Text Text, [Text])
 fake config users groups = run . runWriter . runError . runReader config . fakeLdap (makeUsers users) (makeGroups groups)
 
-fakeLdap :: (Member (Writer [Text]) effs, Member (Reader Config) effs) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Eff (LdapEffect ': effs) ~> Eff effs
+fakeLdap :: (Member (Writer [Text]) effs, Member (Reader Config) effs) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Eff (LdapEffect : effs) ~> Eff effs
 fakeLdap users groups = interpret $ \case
   SearchLdap (Dn base) _mod searchFilter attributes -> do
     Config {_activeUsersContainer, _projectGroupsContainer} <- ask
