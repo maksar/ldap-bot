@@ -1,11 +1,7 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
-
 module API (
-  type RequiredParam
+  RequiredParam
 ) where
 
-import           Servant ( QueryParam', Required, Strict )
+import           Servant
 
 type RequiredParam = QueryParam' '[Strict, Required]

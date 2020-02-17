@@ -1,27 +1,30 @@
-{-# LANGUAGE MonoLocalBinds    #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 
 module Env (
   Config(..),
-  readConfig
+  Environment(..),
+  readConfig,
+  runEnvironment
 ) where
 
-import           Control.Monad.Freer
-import           Control.Monad.Freer.Error
+import           Polysemy
+import           Polysemy.Error
 
-import           Data.Default              ( Default, def )
-import           GHC.Generics              ( Generic )
-import           System.Environment        ( lookupEnv )
+import           Data.Default
+import           GHC.Generics
+import qualified System.Environment as SE
 
-import           Data.Text                 ( Text, empty, pack, unpack, unwords )
-import           Prelude                   hiding ( unwords )
+import           Data.Text
+import           Prelude            hiding ( unwords )
 
-import           Ldap.Client               ( Dn (Dn), PortNumber )
+import           Ldap.Client
+
+instance Default Text where
+  def = empty
+instance Default PortNumber where
+  def = fromIntegral (def :: Int)
+instance Default Dn where
+  def = Dn def
 
 data Config = Config
   { _ldapHost               :: Text
@@ -34,28 +37,32 @@ data Config = Config
   , _activeUsersContainer   :: Dn
   , _projectGroupsContainer :: Dn
   }
-  deriving (Show, Generic, Default)
+  deriving (Eq, Show, Generic, Default)
 
-instance Default Text where def = empty
-instance Default PortNumber where def = fromIntegral (def :: Int)
-instance Default Dn where def = Dn def
+data Environment m a where
+  LookupEnv :: Text -> Environment m Text
 
-readConfig :: (Member (Error Text) effs, Member IO effs) => Eff effs Config
-readConfig = Config <$> readEnv "LDABOT_LDAP_HOST"
+makeSem ''Environment
+
+readConfig :: (Member Environment r) => Sem r Config
+readConfig = Config <$> lookupEnv "LDABOT_LDAP_HOST"
                     <*> readPort "LDABOT_LDAP_PORT"
                     <*> readPort "LDABOT_PORT"
-                    <*> readEnv "LDABOT_VERIFY_TOKEN"
-                    <*> readEnv "LDABOT_PAGE_TOKEN"
-                    <*> readEnv "LDABOT_USERNAME"
-                    <*> readEnv "LDABOT_PASSWORD"
-                    <*> (Dn <$> readEnv "LDABOT_USERS_CONTAINER")
-                    <*> (Dn <$> readEnv "LDABOT_GROUPS_CONTAINER")
+                    <*> lookupEnv "LDABOT_VERIFY_TOKEN"
+                    <*> lookupEnv "LDABOT_PAGE_TOKEN"
+                    <*> lookupEnv "LDABOT_USERNAME"
+                    <*> lookupEnv "LDABOT_PASSWORD"
+                    <*> (Dn <$> lookupEnv "LDABOT_USERS_CONTAINER")
+                    <*> (Dn <$> lookupEnv "LDABOT_GROUPS_CONTAINER")
 
-readEnv :: (Member (Error Text) effs, Member IO effs) => Text -> Eff effs Text
-readEnv name = send (lookupEnv (unpack name)) >>= \case
-  Nothing    -> throwError $ unwords ["Please set", name, "evironment variable."]
-  Just ""    -> throwError $ unwords ["Please set", name, "evironment variable to be not empty."]
-  Just value -> return $ pack value
+readPort :: (Read a, Member Environment r) => Text -> Sem r a
+readPort name = read . unpack <$> lookupEnv name
 
-readPort :: (Read a, Member (Error Text) effs, Member IO effs) => Text -> Eff effs a
-readPort name = read . unpack <$> readEnv name
+runEnvironment :: (Member (Error Text) r, Member (Embed IO) r) => InterpreterFor Environment r
+runEnvironment = interpret $ \case
+  LookupEnv name -> do
+    result <- embed $ SE.lookupEnv $ unpack name
+    case result of
+      Nothing     -> throw $ unwords ["Please set", name, "evironment variable."]
+      Just ""     -> throw $ unwords ["Please set", name, "evironment variable to be not empty."]
+      Just string -> return $ pack string

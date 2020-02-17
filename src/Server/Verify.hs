@@ -1,12 +1,10 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Server.Verify (
   webhookVerify
 ) where
 
-import           Data.Text ( Text )
+import           Data.Text
 
-import           Servant   ( Handler, err500, throwError )
+import           Servant
 
 import           Env
 

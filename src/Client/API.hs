@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Client.API (
   runFacebookAPI,
   sendTextMessage_,
@@ -8,13 +5,14 @@ module Client.API (
   sendHelpMessage_
 ) where
 
-import           Data.Text           ( Text )
+import           Polysemy
+import           Polysemy.Error
 
-import           Network.HTTP.Client ( Manager )
-import           Servant             ( (:<|>) ((:<|>)), (:>), Capture, Get, JSON, PlainText, Post, Proxy (Proxy),
-                                       ReqBody )
-import           Servant.Client      ( BaseUrl (BaseUrl), ClientEnv, ClientError, ClientM, Scheme (Https), client,
-                                       mkClientEnv, runClientM )
+import           Data.Text
+
+import           Network.HTTP.Client hiding ( Proxy )
+import           Servant
+import           Servant.Client
 
 import           API
 import           Client.Model
@@ -36,5 +34,7 @@ clientEnv manager = mkClientEnv manager graphAPIBaseUrl
 graphAPIBaseUrl :: BaseUrl
 graphAPIBaseUrl = BaseUrl Https "graph.facebook.com" 443 "/v6.0"
 
-runFacebookAPI :: Manager -> ClientM a -> IO (Either ClientError a)
-runFacebookAPI manager request = runClientM request $ clientEnv manager
+runFacebookAPI :: (Member (Embed IO) r, Member (Error Text) r) => Manager -> ClientM a -> Sem r a
+runFacebookAPI manager request = do
+  result <- embed (runClientM request (clientEnv manager))
+  mapError (const "Unable to communicate with Facebook.") $ fromEither result

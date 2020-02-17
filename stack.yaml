@@ -41,6 +41,7 @@ packages:
 #
 extra-deps:
 - ldap-client-0.4.0
+- polysemy-1.2.3.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-
 module Client.Model (
   Base(..),
   SendTextMessage(..),
@@ -10,9 +6,8 @@ module Client.Model (
   GetUserInfoMessageResponse(..)
 ) where
 
-import           Data.Aeson   ( FromJSON, ToJSON )
-
-import           GHC.Generics ( Generic )
+import           Data.Aeson
+import           GHC.Generics
 
 newtype Base = Base { id :: String }
     deriving ( Eq, Show, Generic, ToJSON )

@@ -2,11 +2,12 @@ module Server.VerifySpec (
   spec
 ) where
 
-import           Data.Default
-import           System.IO.Silently ( silence )
-import           Test.Hspec         ( Spec, context, describe, it, shouldReturn )
+import           Test.Hspec
 
-import           Servant.Server     ( err500, runHandler )
+import           Data.Default
+import           System.IO.Silently
+
+import           Servant.Server
 
 import           Env
 import           Server.Verify

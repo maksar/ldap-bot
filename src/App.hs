@@ -1,26 +1,26 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MonoLocalBinds   #-}
-{-# LANGUAGE NamedFieldPuns   #-}
-
 module App (
-  ldabot
+  bot,
+  runBot
 ) where
 
-import           Control.Monad.Freer                  ( Eff, Member, send )
-import           Control.Monad.Freer.Error            ( Error )
+import           Polysemy
+import           Polysemy.Error
 
 import           Data.Text
 
-import           Network.Wai.Handler.Warp             ( defaultSettings, runSettings, setPort )
-import           Network.Wai.Middleware.RequestLogger ( logStdoutDev )
+import           Network.Wai.Handler.Warp
+import           Network.Wai.Middleware.RequestLogger
 
 import           Env
 import           Server.API
 
-ldabot :: (Member (Error Text) effs, Member IO effs) => Eff effs ()
-ldabot = do
+bot :: Members '[Environment, Embed IO] r => Sem r ()
+bot = do
   config@Config {_port} <- readConfig
 
-  send $ do
+  embed $ do
     putStrLn $ "Ldabot is listening on port " ++ show _port
     runSettings (setPort _port defaultSettings) $ logStdoutDev $ app config
+
+runBot :: Sem '[Environment, Error Text, Embed IO] a -> IO (Either Text a)
+runBot = runM . runError . runEnvironment

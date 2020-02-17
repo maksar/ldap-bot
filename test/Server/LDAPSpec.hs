@@ -1,197 +1,33 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Server.LDAPSpec (
   spec
 ) where
 
-import           Control.Monad.Freer        ( Eff, Member, type (~>), interpret, reinterpret, run )
-import           Control.Monad.Freer.Error  ( Error, runError )
-import           Control.Monad.Freer.Reader ( Reader, ask, runReader )
-import           Control.Monad.Freer.Writer ( Writer, runWriter, tell )
+import           Test.Hspec
 
-import           Data.Default               ( def )
+import           Control.Monad
+import           Polysemy
+import           Polysemy.Error
+import           Polysemy.Reader
+import           Polysemy.Writer
 
-import qualified Data.ByteString.Char8      as BS ( pack, unpack )
-import           Data.List.NonEmpty         ( NonEmpty ((:|)) )
-import           Data.Maybe                 ( fromJust, fromMaybe )
-import           Data.Text                  ( Text, concat, intercalate, pack, unpack )
-import           Prelude                    hiding ( concat )
+import qualified Data.ByteString.Char8 as BS
+import           Data.Default
+import           Data.List.NonEmpty
+import           Data.Maybe
+import           Data.Text             hiding ( unwords )
+import           Prelude               hiding ( concat )
 
-import           Ldap.Client                ( Attr (..), AttrList, Dn (..), Filter (..), Mod, Operation (..), Search,
-                                              SearchEntry (..) )
+import           Ldap.Client
 
-import           Bot
 import           Env
+import           Server.Command
 import           Server.LDAP
 
-import           Test.Hspec                 ( Expectation, Spec, context, describe, it, shouldBe )
 
-test :: Text -> [Text] -> [(Text, [String], [String], [String])] -> Text -> (Either Text Text, [Text]) -> Expectation
-test input users groups requester (result, messages) =
-  fake def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } users groups (ldapProgram input requester) `shouldBe`
-    (result, [pack $ "Searching in usersContainer with filter (objectClass=person, sAMAccountName=" ++ unpack requester ++ ") and attributes (dn)"] <> messages)
+fake :: [Text] -> [(Text, [String], [String], [String])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a)
+fake users groups = run . runWriter . runReader def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } . runError . fakeLdap (makeUsers users) (makeGroups groups)
 
-spec :: Spec
-spec =
-  describe "LDAP operations" $
-    context "with default config" $ do
-      context "listing group" $ do
-        it "fails when requester user is not found" $
-          test "/list of group" [] [("group", [], [], [])] "a.requester" (
-            Left "User was not found.",
-            [])
-
-        it "fails when command is not recognised" $
-          test "/list group" ["a.requester"] [] "a.requester" (
-            Left "Unknown command: /list group",
-            [])
-
-        it "fails when there is no group found" $
-          test "/list of unknownGroup" ["a.requester"] [("group", [], [], [])] "a.requester" (
-            Left "Group was not found.",
-            ["Searching in groupsContainer with filter (objectClass=Group, cn=unknownGroup) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-        it "succeeds when there is an empty group" $
-          test "/list of group" ["a.requester"] [("group", [], [], [])] "a.requester" (
-            Right "Group: group\n\nMembers:\n\nManagers:",
-            ["Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-        it "succeeds when there is a group with only members" $
-          test "/list of group" ["a.requester"] [("group", ["Member, User"], [], [])] "a.requester" (
-            Right "Group: group\n\nMembers:\nMember, User\n\nManagers:",
-            ["Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-        it "succeeds when there is a group with only managers" $
-          test "/list of group" ["a.requester"] [("group", [], ["Manager, User"], ["CoManager, User"])] "a.requester" (
-            Right "Group: group\n\nMembers:\n\nManagers:\nCoManager, User\nManager, User",
-            ["Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-        it "succeeds when there is a group" $
-          test "/list of group" ["a.requester"] [("group", ["Member, User"], ["Manager, User"], ["CoManager, User"])] "a.requester" (
-            Right "Group: group\n\nMembers:\nMember, User\n\nManagers:\nCoManager, User\nManager, User",
-            ["Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-      context "more interactive actions" $ do
-        context "adding user to a group" $ do
-          it "fails when requester user is not found" $
-            test "/add a.user to group" [] [("group", [], [], [])] "a.requester" (
-              Left "User was not found.",
-              [])
-
-          it "fails when command is not recognised" $
-            test "/add a.user group" ["a.requester"] [] "a.requester" (
-              Left "Unknown command: /add a.user group",
-              [])
-
-          it "fails when there is no user found" $
-            test "/add a.user to group" ["unknown.user", "a.requester"] [("group", [], [], [])] "a.requester" (
-              Left "User was not found.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"])
-
-          it "fails when there is no group found" $
-            test "/add a.user to unknownGroup" ["a.user", "a.requester"] [("group", [], [], [])] "a.requester" (
-              Left "Group was not found.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=unknownGroup) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when requester is not in the group at all" $
-            test "/add a.user to group" ["a.user", "a.requester"] [("group", ["a.user"], [], [])] "a.requester" (
-              Left "You are neither an owner nor a member of the group. So you cannot manage it.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when requester is in the group, but cannot manage it" $
-            test "/add a.user to group" ["a.user", "a.requester"] [("group", ["a.user", "a.requester"], [], [])] "a.requester" (
-              Left "You are not an owner of the group, just a member. So you cannot manage it.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when user is already in the group" $
-            test "/add a.user to group" ["a.user", "a.requester"] [("group", ["a.user"], ["a.requester"], [])] "a.requester" (
-              Left "User is already in a group.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "succeeds when requester is a manager" $
-            test "/add a.user to group" ["a.user", "a.requester"] [("group", [], ["a.requester"], [])] "a.requester" (
-              Right "OK",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
-              ,"Modifying in CN=group,OU=company with operation Add CN=a.user,OU=company to member"])
-
-          it "succeeds when requester is a co-manager" $
-            test "/add a.user to group" ["a.user", "a.requester"] [("group", [], [], ["a.requester"])] "a.requester" (
-              Right "OK",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
-              ,"Modifying in CN=group,OU=company with operation Add CN=a.user,OU=company to member"])
-
-        context "removing user from a group" $ do
-          it "fails when requester user is not found" $
-            test "/remove a.user from group" [] [("group", [], [], [])] "a.requester" (
-              Left "User was not found.",
-              [])
-
-          it "fails when command is not recognised" $
-            test "/remove a.user group" ["a.requester"] [] "a.requester" (
-              Left "Unknown command: /remove a.user group",
-              [])
-
-          it "fails when there is no user found" $
-            test "/remove a.user from group" ["unknown.user", "a.requester"] [("group", [], [], [])] "a.requester" (
-              Left "User was not found.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"])
-
-          it "fails when there is no group found" $
-            test "/remove a.user from unknownGroup" ["a.user", "a.requester"] [("group", [], [], [])] "a.requester" (
-              Left "Group was not found.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=unknownGroup) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when requester is not in the group at all" $
-            test "/remove a.user from group" ["a.user", "a.requester"] [("group", ["a.user"], [], [])] "a.requester" (
-              Left "You are neither an owner nor a member of the group. So you cannot manage it.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when requester is in the group, but cannot manage it" $
-            test "/remove a.user from group" ["a.user", "a.requester"] [("group", ["a.user", "a.requester"], [], [])] "a.requester" (
-              Left "You are not an owner of the group, just a member. So you cannot manage it.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "fails when user is not in the group" $
-            test "/remove a.user from group" ["a.user", "a.requester"] [("group", [], ["a.requester"], [])] "a.requester" (
-              Left "There is no such user in a group.",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"])
-
-          it "succeeds when requester is a manager" $
-            test "/remove a.user from group" ["a.user", "a.requester"] [("group", ["a.user"], ["a.requester"], [])] "a.requester" (
-              Right "OK",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
-              ,"Modifying in CN=group,OU=company with operation Delete CN=a.user,OU=company from member"])
-
-          it "succeeds when requester is a co-manager" $
-            test "/remove a.user from group" ["a.user", "a.requester"] [("group", ["a.user"], [], ["a.requester"])] "a.requester" (
-              Right "OK",
-              ["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"
-              ,"Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
-              ,"Modifying in CN=group,OU=company with operation Delete CN=a.user,OU=company from member"])
-
-fake :: Config -> [Text] -> [(Text, [String], [String], [String])] -> Eff '[LdapEffect, Reader Config, Error Text, Writer [Text]] Text -> (Either Text Text, [Text])
-fake config users groups = run . runWriter . runError . runReader config . fakeLdap (makeUsers users) (makeGroups groups)
-
-fakeLdap :: (Member (Writer [Text]) effs, Member (Reader Config) effs) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Eff (LdapEffect : effs) ~> Eff effs
+fakeLdap :: (Member (Writer [Text]) r, Member (Reader Config) r) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Sem (LdapEffect : r) a -> Sem r a
 fakeLdap users groups = interpret $ \case
   SearchLdap (Dn base) _mod searchFilter attributes -> do
     Config {_activeUsersContainer, _projectGroupsContainer} <- ask
@@ -202,6 +38,116 @@ fakeLdap users groups = interpret $ \case
   ModifyLdap (Dn base) [operation] -> do
     tell [pack $ "Modifying in " ++ unpack base ++ " with operation " ++ showOperation operation]
     return ()
+
+spec :: Spec
+spec =
+  describe "LDAP operations" $ do
+    context "enriching commands" $ do
+      let test :: (Show a, Eq a) => [Text] -> [(Text, [String], [String], [String])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a) -> Expectation
+          test users groups program expected = fake users groups program `shouldBe` expected
+
+      context "enriching List command" $ do
+        let command = List (Value "a.requester") (Value "group")
+
+        it "fails when there is no requester" $
+          test [] [] (enrichCommand command)
+            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)"],
+              Left "User was not found.")
+
+        it "fails when there is no group" $
+          test ["a.requester"] [] (enrichCommand command)
+            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
+              "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+              Left "Group was not found.")
+
+        it "succeeds when there is a requester and a group" $
+          test ["a.requester"] [("group", [], [], [])] (enrichCommand command)
+            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
+              "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+              Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=company") []))))
+
+      forM_ [("Append", Append, Append),
+             ("Remove", Remove, Remove)] $ \(name, parsedContructor, enrichedConstructor) ->
+        context (unwords ["enriching", name, "command"]) $ do
+          let command = parsedContructor (Value "a.requester") (Value "a.user") (Value "group")
+          it "fails when there is no requester" $
+            test [] [] (enrichCommand command)
+              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)"],
+                Left "User was not found.")
+
+          it "fails when there is no user" $
+            test ["a.requester"] [] (enrichCommand command)
+              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"],
+                Left "User was not found.")
+
+          it "fails when there is no group" $
+            test ["a.requester", "a.user"] [] (enrichCommand command)
+              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)",
+                "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+                Left "Group was not found.")
+
+          it "succeeds when there is a requester and user and a group" $
+            test ["a.requester", "a.user"] [("group", [], [], [])] (enrichCommand command)
+              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)",
+                "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+                Right (enrichedConstructor (Value (SearchEntry (Dn "CN=a.requester,OU=company") [])) (Value (SearchEntry (Dn "CN=a.user,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=company") []))))
+
+    context "performs modifications" $ do
+      let test :: (Show a, Eq a) => Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a) -> Expectation
+          test program expected = fake [] [] program `shouldBe` expected
+
+      context "executing confirmed List command" $ do
+        let command attributes = Confirmed $ List undefined (Value $ makeSearchEntry "group" attributes)
+        it "succeeds when there is an empty group" $
+          test (executeOperation $ command []) (
+            [],
+             Right "Group: group\n\nMembers:\n\nManagers:")
+
+        it "succeeds when there is a group with only members" $
+          test (executeOperation $ command [makeAttribute "member" "Member, User"]) (
+            [],
+             Right "Group: group\n\nMembers:\nMember, User\n\nManagers:")
+
+        it "succeeds when there is a group with only managers" $
+          test (executeOperation $ command [makeAttribute "managedBy" "Manager, User", makeAttribute "msExchCoManagedByLink" "CoManager, User"]) (
+            [],
+             Right "Group: group\n\nMembers:\n\nManagers:\nCoManager, User\nManager, User")
+
+        it "succeeds when there is a full group" $
+          test (executeOperation $ command [makeAttribute "member" "Member, User", makeAttribute "managedBy" "Manager, User", makeAttribute "msExchCoManagedByLink" "CoManager, User"]) (
+            [],
+             Right "Group: group\n\nMembers:\nMember, User\n\nManagers:\nCoManager, User\nManager, User")
+
+      context "executing confirmed Append command" $
+        it "adds user to a group" $
+          test (executeOperation $ Confirmed $ Append undefined (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [])) (
+            ["Modifying in CN=group,OU=company with operation Add CN=a.user,OU=company to member"],
+             Right "OK")
+
+      context "executing confirmed Remove command" $
+        it "adds user to a group" $
+          test (executeOperation $ Confirmed $ Remove undefined (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [])) (
+            ["Modifying in CN=group,OU=company with operation Delete CN=a.user,OU=company from member"],
+             Right "OK")
+
+      context "extracts knowledge about the group" $ do
+        it "states that user has nothing common with the group" $
+          groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" []) `shouldBe` None
+
+        it "states that user is a member of a group if he is a member" $
+          groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [makeAttribute "member" "a.user"]) `shouldBe` Member
+
+        it "states that user is an owner of a group if he is a manager" $
+          groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [makeAttribute "managedBy" "a.user"]) `shouldBe` Owner
+
+        it "states that user is an owner of a group if he is a co-manager" $
+          groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [makeAttribute "msExchCoManagedByLink" "a.user"]) `shouldBe` Owner
+
+        it "states that user is an owner of a group if he is a member and a manager" $
+          groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [makeAttribute "member" "a.user", makeAttribute "managedBy" "a.user"]) `shouldBe` Owner
 
 showFilter :: Filter -> String
 showFilter (Attr attr := value)    = unpack attr ++ "=" ++ BS.unpack value
@@ -238,4 +184,6 @@ makeGroups = Prelude.map (\g@(name, _, _, _) -> (name, analyseGroup g))
           Prelude.map (makeAttribute "msExchCoManagedByLink") coManagers
         )
       ]
-    makeAttribute name value = (Attr name, [BS.pack $ "CN=" ++ value ++ ",OU=company"])
+
+makeAttribute :: Text -> String -> (Attr, [BS.ByteString])
+makeAttribute name value = (Attr name, [BS.pack $ "CN=" ++ value ++ ",OU=company"])

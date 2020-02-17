@@ -11,6 +11,13 @@ packages:
       sha256: 41b6640054587935b6c4e2f5104088961f28c59725d7ec081269432b4bce2b19
   original:
     hackage: ldap-client-0.4.0
+- completed:
+    hackage: polysemy-1.2.3.0@sha256:2345b6b76adc8f91fc88251129deff584cebcd07e952dd66aa512c69949df537,6097
+    pantry-tree:
+      size: 3625
+      sha256: 8d327bc0dcb178112b933626a33200e8714712a77eb348271fdfbdd326b03fec
+  original:
+    hackage: polysemy-1.2.3.0
 snapshots:
 - completed:
     size: 524163

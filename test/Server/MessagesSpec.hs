@@ -1,25 +1,23 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE PatternSynonyms  #-}
-{-# LANGUAGE QuasiQuotes      #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns     #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns    #-}
 
 module Server.MessagesSpec (
   spec
 ) where
 
-import           Data.GenValidity           ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
-import           Data.GenValidity.Vector    ()
-import           Test.Hspec                 ( Spec, describe, it, shouldBe )
-import           Test.Validity              ( eqSpec, genValiditySpec, showReadSpec )
+import           Test.Hspec
+import           Test.Validity
 
-import           Data.Aeson                 ( eitherDecode )
-import           Data.ByteString.Lazy.Char8 ( pack )
-import           Data.Text                  ( unpack )
-import           Data.Vector                as V ( Vector, null, singleton )
-import qualified NeatInterpolation          as I ( text )
+import           Data.Aeson
+import           Data.ByteString.Lazy.Char8 hiding ( unpack )
+import           Data.GenValidity
+import           Data.GenValidity.Vector
+import           Data.Text                  hiding ( pack )
+import           Data.Vector                as V
+import qualified NeatInterpolation          as I
 
-import           Server.MessageSpec         ()
+import           Server.MessageSpec         hiding ( spec )
 import           Server.Model
 
 pattern Empty :: V.Vector a

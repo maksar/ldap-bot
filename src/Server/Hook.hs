@@ -1,29 +1,27 @@
-{-# LANGUAGE DataKinds #-}
-
 module Server.Hook (
   webhookMessage
 ) where
 
-import           Control.Monad.Freer        ( Eff, runM, subsume )
-import           Control.Monad.Freer.Error  ( Error, runError )
-import           Control.Monad.Freer.Reader ( Reader, runReader )
-import           Control.Monad.IO.Class     ( liftIO )
+import           Control.Monad.IO.Class
+import           Polysemy
+import           Polysemy.Error
+import           Polysemy.Reader
 
-import           Data.Text                  ( Text )
-import           Data.Vector                ( Vector, mapM )
-import           Prelude                    hiding ( mapM )
+import           Data.Text
+import           Data.Vector
+import           Prelude                hiding ( mapM )
 
-import           Servant                    ( Handler )
+import           Servant
 
-import           Bot
 import           Client.Facebook
 import           Client.Model
 import           Env
 import           Server.LDAP
 import           Server.Model
+import           Server.Registry
 
 webhookMessage :: Config -> Messages -> Handler (Vector (Either Text SendTextMessageResponse))
-webhookMessage config (Messages inputs) = mapM (liftIO . interpretProgram config . program ldapProgram) inputs
+webhookMessage config (Messages inputs) = mapM (liftIO . interpretProgram config . facebookProgram) inputs
 
-interpretProgram :: Config -> Eff '[LdapEffect, FacebookEffect, Error Text, Reader Config, IO] a -> IO (Either Text a)
-interpretProgram config = runM . runReader config . runError . subsume . runFacebook . subsume . runLdap
+interpretProgram :: Config -> Sem '[FacebookEffect, Registry, LdapEffect, Reader Config, Error Text, Embed IO] a -> IO (Either Text a)
+interpretProgram config = runM . runError . runReader config  . runLdap . runRegistry . runFacebook

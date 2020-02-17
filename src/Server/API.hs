@@ -1,16 +1,11 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Server.API (
   app
 ) where
 
-import           Data.Text     ( Text )
-import           Data.Vector   ( Vector )
+import           Data.Text
+import           Data.Vector
 
-import           Servant       ( (:<|>) ((:<|>)), (:>), Application, Get, JSON, PlainText, Post, Proxy (Proxy), ReqBody,
-                                 serve )
+import           Servant
 
 import           API
 import           Client.Model

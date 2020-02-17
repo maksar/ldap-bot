@@ -1,13 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Server.MessageSpec (
   spec
 ) where
 
-import           Data.GenValidity ( GenInvalid, GenUnchecked, GenValid, Validity, invalid, valid, validate )
-import           Test.Hspec       ( Spec, describe )
-import           Test.Validity    ( eqSpec, genValiditySpec, showReadSpec )
+import           Data.GenValidity
+import           Test.Hspec
+import           Test.Validity
 
 import           Server.Model
 

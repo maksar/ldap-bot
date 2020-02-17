@@ -1,63 +1,76 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE GADTs         #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE TypeOperators #-}
-
-
 module Client.FacebookSpec (
   spec
 ) where
 
-import           Test.Hspec                 ( Expectation, Spec, context, describe, it, shouldBe )
+import           Test.Hspec
 
-import           Control.Monad.Freer        ( Eff, Member, reinterpret, run )
-import           Control.Monad.Freer.Error  ( Error, throwError )
-import           Control.Monad.Freer.Reader ( Reader, runReader )
-import           Control.Monad.Freer.Writer ( Writer, runWriter, tell )
+import           Polysemy
+import           Polysemy.Error
+import           Polysemy.Reader
+import           Polysemy.Writer
 
-import           Data.Default               ( def )
-import           Data.Text                  hiding ( map )
+import           Data.Default
+import           Data.Text       hiding ( map )
+import           Prelude         hiding ( unwords )
 
-import           Bot
+import           Ldap.Client
+
 import           Client.Facebook
 import           Client.Model
 import           Env
-import           Ldap.Client
 import           Server.LDAP
 import           Server.Model
+import           Server.Registry
 
-test :: Text -> (Text -> Text -> Eff '[Error Text, FacebookEffect, Reader Config] Text) -> [Text] -> Expectation
-test text innerLdapOperation messages =
-  fake def (program innerLdapOperation $ Message "requester" (unpack text)) `shouldBe` (SendTextMessageResponse "requester" "message_id", messages)
+test :: Text -> GroupModificationHandler -> ([Text], Either Text SendTextMessageResponse) -> Expectation
+test text handler (messages, result) =
+  fakeInterpreter handler (facebookProgram $ Message "a.requester" (unpack text)) `shouldBe` (messages, result)
+
+fakeInterpreter :: GroupModificationHandler -> Sem '[FacebookEffect, Reader Config, Error Text, Writer [Text]] a -> ([Text], Either Text a)
+fakeInterpreter handler = run . runWriter . runError . runReader def . fakeFacebook handler
 
 spec :: Spec
 spec =
   describe "Bot logic" $ do
     context "Ldap operation fails with error" $ do
-      let ldapOperation = fakeLdapOperationWith return
-
       it "sends help when needed" $
-        test "/help" ldapOperation ["Sending help to requester user an Workplace."]
+        test "/help" failing
+          (["Sending help to a.requester user an Workplace."],
+            Right $ SendTextMessageResponse "a.requester" "message_id")
 
       it "send to facebook whatever it got from Ldap" $
-        test "text" ldapOperation ["Getting user information about requester from Workplace", "Sending 'Requesting Ldap operation with input 'text' and email 'account_email'' message to Workplace."]
+        test "/command" failing
+          (["Getting user information about a.requester from Workplace",
+            "Passing /command as input and account_email as email to group modification mechanism.",
+            "Sending 'Error' message to Workplace."],
+            Right $ SendTextMessageResponse "a.requester" "message_id")
 
     context "Ldap operation fails with error" $ do
-      let ldapOperation = fakeLdapOperationWith throwError
-
       it "sends help when needed" $
-        test "/help" ldapOperation ["Sending help to requester user an Workplace."]
+        test "/help" successing
+          (["Sending help to a.requester user an Workplace."],
+            Right $ SendTextMessageResponse "a.requester" "message_id")
 
       it "send to facebook whatever it got from Ldap" $
-        test "text" ldapOperation ["Getting user information about requester from Workplace", "Sending 'Requesting Ldap operation with input 'text' and email 'account_email'' message to Workplace."]
+        test "/command" successing
+          (["Getting user information about a.requester from Workplace",
+            "Passing /command as input and account_email as email to group modification mechanism.",
+            "Sending 'OK' message to Workplace."],
+            Right $ SendTextMessageResponse "a.requester" "message_id")
 
-fakeLdapOperationWith operand input email = operand $ pack $ "Requesting Ldap operation with input '" ++ unpack input ++ "' and email '" ++ unpack email ++ "'"
+type GroupModificationHandler = forall r. (Member (Error Text) r) => Sem r Text
 
-fake :: Config -> Eff '[FacebookEffect, Reader Config] a -> (a, [Text])
-fake config = run . runReader config . runWriter . fakeFacebook
+failing :: GroupModificationHandler
+failing = throw $ pack "Error"
 
-fakeFacebook :: Eff (FacebookEffect : effs) a -> Eff (Writer [Text] : effs) a
-fakeFacebook = reinterpret $ \case
+successing :: GroupModificationHandler
+successing = return $ pack "OK"
+
+fakeFacebook :: GroupModificationHandler -> (Member (Error Text) r, Member (Writer [Text]) r) => InterpreterFor FacebookEffect r
+fakeFacebook handler = interpret $ \case
+  ModifyGroup input email -> do
+    tell [unwords ["Passing", input, "as input and", email, "as email to group modification mechanism."]]
+    handler
   SendText (SendTextMessageRequest (Base account) (SendTextMessage text)) -> do
     tell [pack $ "Sending '" ++ text ++ "' message to Workplace."]
     return $ SendTextMessageResponse account "message_id"

@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MonoLocalBinds   #-}
-
 module Server.Command (
   Account,
   Command (..),
@@ -8,53 +5,52 @@ module Server.Command (
   Enriched,
   EnrichedCommand,
   Group,
-  GroupKnowledge (..),
   Parsed,
   ParsedCommand,
   Value (..),
   commandFromInput,
-  groupFromCommand
+  deconstructCommand,
+  CommandAction
 )
 where
 
-import           Control.Monad.Freer       ( Eff, Member )
-import           Control.Monad.Freer.Error ( Error, throwError )
+import           Polysemy
+import           Polysemy.Error
 
-import           Data.Text                 ( Text, unwords, words )
-import           Prelude                   hiding ( unwords, words )
+import           Data.Text      hiding ( group )
+import           Prelude        hiding ( unwords, words )
 
-import           Ldap.Client               ( SearchEntry )
+import           Ldap.Client
 
 data Account
 data Group
 
-newtype Value t v = Value v deriving (Eq, Show)
+newtype Value t v = Value v
+  deriving (Eq, Show)
 
 type Parsed t = Value t Text
 type Enriched t = Value t SearchEntry
 
-data Command a g = Append a g
-  | Remove a g
-  | List g
+data Command r a g = Append r a g
+  | Remove r a g
+  | List r g
   deriving (Eq, Show)
 
-type ParsedCommand = Command (Parsed Account) (Parsed Group)
-type EnrichedCommand = Command (Enriched Account) (Enriched Group)
+type CommandAction = Enriched Account -> Enriched Account -> Enriched Group -> EnrichedCommand
+
+type ParsedCommand = Command (Parsed Account) (Parsed Account) (Parsed Group)
+type EnrichedCommand = Command (Enriched Account) (Enriched Account) (Enriched Group)
 
 newtype ConfirmedCommand = Confirmed EnrichedCommand
 
-data GroupKnowledge = Owner
-  | Member
-  | None
+commandFromInput :: Member (Error Text) r => Text -> Text -> Sem r ParsedCommand
+commandFromInput requester string = case words string of
+  ("/add" : person : "to" : group)      -> return $ Append (Value requester) (Value person) (Value $ unwords group)
+  ("/remove" : person : "from" : group) -> return $ Remove (Value requester) (Value person) (Value $ unwords group)
+  ("/list" : "of" : group)              -> return $ List (Value requester) (Value $ unwords group)
+  _                                     -> throw $ unwords ["Unknown command:", string]
 
-commandFromInput :: Member (Error Text) effs => Text -> Eff effs ParsedCommand
-commandFromInput string = case words string of
-  ("/add" : person : "to" : group)      -> return $ Append (Value person) (Value $ unwords group)
-  ("/remove" : person : "from" : group) -> return $ Remove (Value person) (Value $ unwords group)
-  ("/list" : "of" : group)              -> return $ List (Value $ unwords group)
-  _                                     -> throwError $ unwords ["Unknown command:", string]
-
-groupFromCommand :: EnrichedCommand -> Enriched Group
-groupFromCommand (Append _ group) = group
-groupFromCommand (Remove _ group) = group
-groupFromCommand (List group)     = group
+deconstructCommand :: EnrichedCommand -> (Enriched Account, Enriched Account, Enriched Group)
+deconstructCommand (List requester group)           = (requester, undefined, group)
+deconstructCommand (Append requester account group) = (requester, account, group)
+deconstructCommand (Remove requester account group) = (requester, account, group)

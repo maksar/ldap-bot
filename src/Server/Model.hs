@@ -1,18 +1,16 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Server.Model (
   Message(..),
   Messages(..)
 ) where
 
-import           Control.Applicative ( (<|>) )
-import           Control.Monad       ( join )
+import           Control.Applicative
+import           Control.Monad       hiding ( mapM )
 
-import           Data.Aeson          ( FromJSON, parseJSON, withArray, withObject, (.:) )
+import           Data.Aeson
+import           GHC.Generics
 
-import           Data.Vector         ( Vector )
-
-import           GHC.Generics        ( Generic )
+import           Data.Vector
+import           Prelude             hiding ( mapM )
 
 data Message = Message
   { sender_id :: String
