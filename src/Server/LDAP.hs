@@ -8,7 +8,7 @@ module Server.LDAP
   GroupKnowledge (..),
 ) where
 
-import           Control.Exception     hiding ( throw, catch )
+import           Control.Exception     hiding ( catch, throw )
 import           Control.Monad
 import           Polysemy
 import           Polysemy.Error
@@ -76,12 +76,19 @@ enrichAccount (Value account) = validateObject "User" =<< do
 
 enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
 enrichGroup (Value group) = validateObject "Group" =<< do
-  Config {_projectGroupsContainer} <- ask
+  Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
   searchLdap
     _projectGroupsContainer
-    (scope SingleLevel)
-    (And $ NE.fromList [Attr "objectClass" := "Group", Attr "cn" := BS.pack (unpack group)])
+    (scope WholeSubtree)
+    (
+      And $ NE.fromList [
+        Attr "objectClass" := "group",
+        Attr "cn" := BS.pack (unpack group),
+        Or $ fmap (\orgunit -> Attr "distinguishedName" := distinguishedName group orgunit _projectGroupsContainer) _projectGroupsOrgunits]
+    )
     [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
+  where
+    distinguishedName cn container (Dn base) = BS.pack ("CN=" ++ unpack cn ++ ",OU=" ++ unpack container ++ "," ++ unpack base)
 
 validateObject :: Member (Error Text) r => Text -> [SearchEntry] -> Sem r (Enriched b)
 validateObject object list = do

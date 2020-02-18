@@ -25,13 +25,13 @@ import           Server.LDAP
 
 
 fake :: [Text] -> [(Text, [String], [String], [String])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a)
-fake users groups = run . runWriter . runReader def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer" } . runError . fakeLdap (makeUsers users) (makeGroups groups)
+fake users groups = run . runWriter . runReader def { _activeUsersContainer = Dn "usersContainer", _projectGroupsContainer = Dn "groupsContainer", _projectGroupsOrgunits = "Unit1" :| ["Unit2"] } . runError . fakeLdap (makeUsers users) (makeGroups groups)
 
 fakeLdap :: (Member (Writer [Text]) r, Member (Reader Config) r) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Sem (LdapEffect : r) a -> Sem r a
 fakeLdap users groups = interpret $ \case
   SearchLdap (Dn base) _mod searchFilter attributes -> do
     Config {_activeUsersContainer, _projectGroupsContainer} <- ask
-    tell [pack $ "Searching in " ++ unpack base ++ " with filter (" ++ showFilter searchFilter ++ ") and attributes (" ++ unpack (showAttributes attributes) ++ ")"]
+    tell [pack $ "Searching in " ++ unpack base ++ " with filter " ++ showFilter searchFilter ++ " and attributes (" ++ unpack (showAttributes attributes) ++ ")"]
     let container = fromJust $ lookup (Dn base) [(_activeUsersContainer, users), (_projectGroupsContainer, groups)]
     return $ fromMaybe [] $ lookup (extractFilter searchFilter) container
 
@@ -51,19 +51,19 @@ spec =
 
         it "fails when there is no requester" $
           test [] [] (enrichCommand command)
-            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)"],
+            (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)"],
               Left "User was not found.")
 
         it "fails when there is no group" $
           test ["a.requester"] [] (enrichCommand command)
-            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
-              "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+            (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+              "Searching in groupsContainer with filter objectClass=group and cn=group and (distinguishedName=CN=group,OU=Unit1,groupsContainer or distinguishedName=CN=group,OU=Unit2,groupsContainer) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
               Left "Group was not found.")
 
         it "succeeds when there is a requester and a group" $
           test ["a.requester"] [("group", [], [], [])] (enrichCommand command)
-            (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
-              "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+            (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+              "Searching in groupsContainer with filter objectClass=group and cn=group and (distinguishedName=CN=group,OU=Unit1,groupsContainer or distinguishedName=CN=group,OU=Unit2,groupsContainer) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
               Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=company") []))))
 
       forM_ [("Append", Append, Append),
@@ -72,27 +72,27 @@ spec =
           let command = parsedContructor (Value "a.requester") (Value "a.user") (Value "group")
           it "fails when there is no requester" $
             test [] [] (enrichCommand command)
-              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)"],
+              (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)"],
                 Left "User was not found.")
 
           it "fails when there is no user" $
             test ["a.requester"] [] (enrichCommand command)
-              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
-                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)"],
+              (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+                "Searching in usersContainer with filter objectClass=person and sAMAccountName=a.user and attributes (dn)"],
                 Left "User was not found.")
 
           it "fails when there is no group" $
             test ["a.requester", "a.user"] [] (enrichCommand command)
-              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
-                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)",
-                "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+              (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+                "Searching in usersContainer with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
+                "Searching in groupsContainer with filter objectClass=group and cn=group and (distinguishedName=CN=group,OU=Unit1,groupsContainer or distinguishedName=CN=group,OU=Unit2,groupsContainer) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Left "Group was not found.")
 
           it "succeeds when there is a requester and user and a group" $
             test ["a.requester", "a.user"] [("group", [], [], [])] (enrichCommand command)
-              (["Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.requester) and attributes (dn)",
-                "Searching in usersContainer with filter (objectClass=person, sAMAccountName=a.user) and attributes (dn)",
-                "Searching in groupsContainer with filter (objectClass=Group, cn=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
+              (["Searching in usersContainer with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+                "Searching in usersContainer with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
+                "Searching in groupsContainer with filter objectClass=group and cn=group and (distinguishedName=CN=group,OU=Unit1,groupsContainer or distinguishedName=CN=group,OU=Unit2,groupsContainer) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Right (enrichedConstructor (Value (SearchEntry (Dn "CN=a.requester,OU=company") [])) (Value (SearchEntry (Dn "CN=a.user,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=company") []))))
 
     context "performs modifications" $ do
@@ -150,12 +150,15 @@ spec =
           groupKnowledge (Value $ makeSearchEntry "a.user" []) (Value $ makeSearchEntry "group" [makeAttribute "member" "a.user", makeAttribute "managedBy" "a.user"]) `shouldBe` Owner
 
 showFilter :: Filter -> String
-showFilter (Attr attr := value)    = unpack attr ++ "=" ++ BS.unpack value
-showFilter (And (first :| [rest])) = showFilter first ++ ", " ++ showFilter rest
+showFilter (Attr attr := value)   = unpack attr ++ "=" ++ BS.unpack value
+showFilter (Or (first :| []))     = showFilter first
+showFilter (Or (first :| [last])) = "(" ++ showFilter first ++ " or " ++ showFilter last ++ ")"
+showFilter (And (first :| []))    = showFilter first
+showFilter (And (first :| rest))  = showFilter first ++ " and " ++ showFilter (And $ fromList rest)
 
 extractFilter :: Filter -> Text
 extractFilter (And (Attr "objectClass" := "person" :| [Attr "sAMAccountName" := value])) = pack $ BS.unpack value
-extractFilter (And (Attr "objectClass" := "Group" :| [Attr "cn" := value]))              = pack $ BS.unpack value
+extractFilter (And (Attr "objectClass" := "group" :| (Attr "cn" := value : rest)))       = pack $ BS.unpack value
 
 showOperation :: Operation -> String
 showOperation (Delete (Attr attr) [value]) = "Delete " ++ BS.unpack value ++ " from " ++ unpack attr

@@ -15,10 +15,13 @@ import           GHC.Generics
 import qualified System.Environment as SE
 
 import           Data.Text
+import           Data.List.NonEmpty
 import           Prelude            hiding ( unwords )
 
 import           Ldap.Client
 
+instance Default a => Default (NonEmpty a) where
+  def = def :| def
 instance Default Text where
   def = empty
 instance Default PortNumber where
@@ -36,6 +39,7 @@ data Config = Config
   , _password               :: Text
   , _activeUsersContainer   :: Dn
   , _projectGroupsContainer :: Dn
+  , _projectGroupsOrgunits  :: NonEmpty Text
   }
   deriving (Eq, Show, Generic, Default)
 
@@ -54,6 +58,7 @@ readConfig = Config <$> lookupEnv "LDABOT_LDAP_HOST"
                     <*> lookupEnv "LDABOT_PASSWORD"
                     <*> (Dn <$> lookupEnv "LDABOT_USERS_CONTAINER")
                     <*> (Dn <$> lookupEnv "LDABOT_GROUPS_CONTAINER")
+                    <*> (fromList . splitOn "," <$> lookupEnv "LDABOT_GROUPS_ORGUNITS")
 
 readPort :: (Read a, Member Environment r) => Text -> Sem r a
 readPort name = read . unpack <$> lookupEnv name

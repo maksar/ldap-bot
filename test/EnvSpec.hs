@@ -14,11 +14,16 @@ import           Polysemy.Error
 import           Ldap.Client
 
 import           Data.Default
+import           Data.List.NonEmpty             hiding ( cycle, drop, filter, length, zipWith )
 import           Data.Text                      hiding ( drop, length, zipWith )
-import           Prelude                        hiding ( unwords )
+import           Prelude                        hiding ( filter, intercalate, unwords )
 
 import           Env
 
+instance Arbitrary (NonEmpty Text) where
+  arbitrary = (:|) <$> filtered <*> (return <$> filtered)
+    where
+      filtered = filter (/= ',') <$> arbitrary
 instance Arbitrary Dn where
   arbitrary = Dn <$> arbitrary
 instance Arbitrary PortNumber where
@@ -33,9 +38,10 @@ instance Arbitrary Config where
                      <*> arbitrary
                      <*> arbitrary
                      <*> arbitrary
+                     <*> arbitrary
 
 hashify :: Config -> [(Text, Text)]
-hashify Config {_ldapHost, _ldapPort, _port, _verifyToken, _pageToken, _user, _password, _activeUsersContainer, _projectGroupsContainer} =
+hashify Config {_ldapHost, _ldapPort, _port, _verifyToken, _pageToken, _user, _password, _activeUsersContainer, _projectGroupsContainer, _projectGroupsOrgunits} =
   [("LDABOT_LDAP_HOST", _ldapHost)
   ,("LDABOT_LDAP_PORT",  pack . show $ _ldapPort)
   ,("LDABOT_PORT", pack . show $ _port)
@@ -45,6 +51,7 @@ hashify Config {_ldapHost, _ldapPort, _port, _verifyToken, _pageToken, _user, _p
   ,("LDABOT_PASSWORD", _password)
   ,("LDABOT_USERS_CONTAINER", fromDn _activeUsersContainer)
   ,("LDABOT_GROUPS_CONTAINER", fromDn _projectGroupsContainer)
+  ,("LDABOT_GROUPS_ORGUNITS", intercalate "," $ toList _projectGroupsOrgunits)
   ]
   where
     fromDn (Dn dn) = dn
