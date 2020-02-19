@@ -4,12 +4,12 @@ module Server.Model (
 ) where
 
 import           Control.Applicative
-import           Control.Monad       hiding ( mapM )
+import           Control.Monad
 
 import           Data.Aeson
+import           Data.List.NonEmpty  hiding ( toList )
 import           GHC.Generics
-
-import           Data.Vector
+import           Data.Foldable
 import           Prelude             hiding ( mapM )
 
 data Message = Message
@@ -18,13 +18,12 @@ data Message = Message
   }
   deriving (Eq, Show, Read, Generic)
 
-newtype Messages = Messages { messages :: Vector Message }
+newtype Messages = Messages { messages :: NonEmpty Message }
     deriving ( Eq, Show, Read, Generic )
 
 instance FromJSON Messages where
   parseJSON = withObject "root object" $ \root ->
-    root .: "entry" >>= fmap (Messages . join) . withArray
-      "entries array"
+    root .: "entry" >>= fmap (Messages . fromList . toList  . join) . withArray "entries array"
       (mapM $ withObject "entry object" $ \entry ->
         entry .: "messaging" >>= withArray
           "messaging array"

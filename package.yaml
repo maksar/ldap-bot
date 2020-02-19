@@ -1,16 +1,13 @@
 name: ldabot
-version: 0.1.0.0
+version: 0.2.0.0
 author: Alexander Shestakov
-copyright: 2020 Alexander Shestakov
+copyright: 2020 Itransition
 maintainer: a.shestakov@itransition.com
 library:
   source-dirs: src
   ghc-options:
   - -Wall
   - -Werror
-  - -O2
-  - -flate-specialise
-  - -fspecialise-aggressively
   - -fplugin=Polysemy.Plugin
 default-extensions:
 - DataKinds
@@ -35,7 +32,6 @@ default-extensions:
 dependencies:
 - base >= 4.7 && < 5
 
-- freer-simple
 - polysemy >= 1.2.3.0
 - polysemy-plugin
 
@@ -43,7 +39,6 @@ dependencies:
 - data-default
 
 - text
-- vector
 - bytestring
 - neat-interpolation
 
@@ -70,12 +65,6 @@ tests:
 
     - hspec
     - hspec-discover
-    - validity
-    - validity-vector
-    - genvalidity
-    - genvalidity-vector
-    - genvalidity-text
-    - genvalidity-hspec
     - QuickCheck
     - quickcheck-instances
     - silently
@@ -109,10 +98,5 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -Wall
-    - -O2
-    - -flate-specialise
-    - -fspecialise-aggressively
-    - -fplugin=Polysemy.Plugin
     dependencies:
     - ldabot

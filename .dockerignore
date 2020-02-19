@@ -1,5 +1,5 @@
-.stack-work/
 .*
+!.stack-work/docker/_home/.local/bin/
 *.yml
 *.yaml
 *file
