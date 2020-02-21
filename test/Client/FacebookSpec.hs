@@ -7,11 +7,13 @@ import           Test.Hspec
 import           Polysemy
 import           Polysemy.Error
 import           Polysemy.Reader
+import           Polysemy.Resource
+import           Polysemy.Trace
 import           Polysemy.Writer
 
 import           Data.Default
-import           Data.Text       hiding ( map )
-import           Prelude         hiding ( unwords )
+import           Data.Text         hiding ( map )
+import           Prelude           hiding ( unwords )
 
 import           Ldap.Client
 
@@ -22,12 +24,17 @@ import           Server.LDAP
 import           Server.Model
 import           Server.Registry
 
-test :: Text -> GroupModificationHandler -> ([Text], Either Text SendTextMessageResponse) -> Expectation
+test :: Text -> GroupModificationHandler -> ([String], Either Text SendTextMessageResponse) -> Expectation
 test text handler (messages, result) =
-  fakeInterpreter handler (facebookProgram $ Message "a.requester" (unpack text)) `shouldBe` (messages, result)
+  fakeInterpreter handler (facebookProgram $ Message "a.requester" (unpack text)) `shouldBe` ([
+    "Sending service message ServiceMessageRequest {recipient = Base {id = \"a.requester\"}, sender_action = TypingOn}"
+  ] <> messages <> [
+    "Sending service message ServiceMessageRequest {recipient = Base {id = \"a.requester\"}, sender_action = TypingOff}",
+    "Sending service message ServiceMessageRequest {recipient = Base {id = \"a.requester\"}, sender_action = MarkSeen}"
+  ], result)
 
-fakeInterpreter :: GroupModificationHandler -> Sem '[FacebookEffect, Reader Config, Error Text, Writer [Text]] a -> ([Text], Either Text a)
-fakeInterpreter handler = run . runWriter . runError . runReader def . fakeFacebook handler
+fakeInterpreter :: GroupModificationHandler -> Sem '[FacebookEffect, Reader Config, Error Text, Resource, Trace] a -> ([String], Either Text a)
+fakeInterpreter handler = run . runTraceList . runResource . runError . runReader def . fakeFacebook handler . logFacebook
 
 spec :: Spec
 spec =
@@ -35,28 +42,28 @@ spec =
     context "Ldap operation fails with error" $ do
       it "sends help when needed" $
         test "/help" failing
-          (["Sending help to a.requester user an Workplace."],
-            Right $ SendTextMessageResponse "a.requester" "message_id")
+          (["Sending help to a.requester"],
+            Right $ SendTextMessageResponse "a.requester")
 
       it "send to facebook whatever it got from Ldap" $
         test "/command" failing
-          (["Getting user information about a.requester from Workplace",
-            "Passing /command as input and account_email as email to group modification mechanism.",
-            "Sending 'Error' message to Workplace."],
-            Right $ SendTextMessageResponse "a.requester" "message_id")
+          (["Getting info about a.requester",
+            "Executing request /command by account_email",
+            "Sending text message SendTextMessageRequest {recipient = Base {id = \"a.requester\"}, message = SendTextMessage {text = \"Error\"}}"],
+            Right $ SendTextMessageResponse "a.requester")
 
     context "Ldap operation fails with error" $ do
       it "sends help when needed" $
         test "/help" successing
-          (["Sending help to a.requester user an Workplace."],
-            Right $ SendTextMessageResponse "a.requester" "message_id")
+          (["Sending help to a.requester"],
+            Right $ SendTextMessageResponse "a.requester")
 
       it "send to facebook whatever it got from Ldap" $
         test "/command" successing
-          (["Getting user information about a.requester from Workplace",
-            "Passing /command as input and account_email as email to group modification mechanism.",
-            "Sending 'OK' message to Workplace."],
-            Right $ SendTextMessageResponse "a.requester" "message_id")
+          (["Getting info about a.requester",
+            "Executing request /command by account_email",
+            "Sending text message SendTextMessageRequest {recipient = Base {id = \"a.requester\"}, message = SendTextMessage {text = \"OK\"}}"],
+            Right $ SendTextMessageResponse "a.requester")
 
 type GroupModificationHandler = forall r. (Member (Error Text) r) => Sem r Text
 
@@ -66,17 +73,10 @@ failing = throw $ pack "Error"
 successing :: GroupModificationHandler
 successing = return $ pack "OK"
 
-fakeFacebook :: GroupModificationHandler -> (Member (Error Text) r, Member (Writer [Text]) r) => InterpreterFor FacebookEffect r
+fakeFacebook :: (Member (Error Text) r) => GroupModificationHandler -> InterpreterFor FacebookEffect r
 fakeFacebook handler = interpret $ \case
-  ModifyGroup input email -> do
-    tell [unwords ["Passing", input, "as input and", email, "as email to group modification mechanism."]]
-    handler
-  SendText (SendTextMessageRequest (Base account) (SendTextMessage text)) -> do
-    tell [pack $ "Sending '" ++ text ++ "' message to Workplace."]
-    return $ SendTextMessageResponse account "message_id"
-  GetInfo account -> do
-    tell [pack $ "Getting user information about " ++ unpack account ++ " from Workplace"]
-    return $ GetUserInfoMessageResponse "account_email@test.com"
-  SendHelp account -> do
-    tell [pack $ "Sending help to " ++ unpack account ++ " user an Workplace."]
-    return $ SendTextMessageResponse (unpack account) "message_id"
+  ModifyGroup input email -> handler
+  SendText (SendTextMessageRequest (Base account) (SendTextMessage text)) -> return $ SendTextMessageResponse account
+  GetInfo account -> return $ GetUserInfoMessageResponse "account_email@test.com"
+  ServiceMessage (ServiceMessageRequest (Base account) action) -> return $ SendTextMessageResponse account
+  SendHelp account -> return $ SendTextMessageResponse (unpack account)

@@ -1,12 +1,11 @@
 module Client.API (
-  runFacebookAPI,
   sendTextMessage_,
   getUserInfo_,
-  sendHelpMessage_
+  sendHelpMessage_,
+  sendServiceMessage_,
+  clientEnv,
+  Token
 ) where
-
-import           Polysemy
-import           Polysemy.Error
 
 import           Data.Text
 
@@ -18,23 +17,22 @@ import           API
 import           Client.Model
 
 type FBMessengerSendAPI =
-  "me" :> "messages" :> RequiredParam "access_token" Text :> ReqBody '[JSON] SendTextMessageRequest :> Post '[JSON] SendTextMessageResponse
-  :<|> RequiredParam "access_token" Text :> Capture "user_id" Text :> RequiredParam "fields" Text :> Get '[JSON] GetUserInfoMessageResponse
-  :<|> "me" :> "messages" :> RequiredParam "access_token" Text :> ReqBody '[PlainText] Text :> Post '[JSON] SendTextMessageResponse
+       "me" :> "messages" :> ReqBody '[JSON] SendTextMessageRequest :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
+  :<|> "me" :> "messages" :> ReqBody '[JSON] ServiceMessageRequest :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
+  :<|> "me" :> "messages" :> ReqBody '[PlainText] Text :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
+  :<|> Capture "user_id" Text :> RequiredParam "fields" Text :> AccessTokenParam :> Get '[JSON] GetUserInfoMessageResponse
 
-sendTextMessage_ :: Text -> SendTextMessageRequest -> ClientM SendTextMessageResponse
-getUserInfo_ :: Text -> Text -> Text -> ClientM GetUserInfoMessageResponse
-sendHelpMessage_ :: Text -> Text -> ClientM SendTextMessageResponse
+type Token = Text
 
-sendTextMessage_ :<|> getUserInfo_ :<|> sendHelpMessage_ = client (Proxy :: Proxy FBMessengerSendAPI)
+sendTextMessage_ :: SendTextMessageRequest -> Token -> ClientM SendTextMessageResponse
+sendServiceMessage_ :: ServiceMessageRequest -> Token -> ClientM SendTextMessageResponse
+sendHelpMessage_ :: Text -> Token -> ClientM SendTextMessageResponse
+getUserInfo_ :: Text -> Text -> Token -> ClientM GetUserInfoMessageResponse
+
+sendTextMessage_ :<|> sendServiceMessage_ :<|> sendHelpMessage_ :<|> getUserInfo_ = client (Proxy :: Proxy FBMessengerSendAPI)
 
 clientEnv :: Manager -> ClientEnv
 clientEnv manager = mkClientEnv manager graphAPIBaseUrl
 
 graphAPIBaseUrl :: BaseUrl
 graphAPIBaseUrl = BaseUrl Https "graph.facebook.com" 443 "/v6.0"
-
-runFacebookAPI :: (Member (Embed IO) r, Member (Error Text) r) => Manager -> ClientM a -> Sem r a
-runFacebookAPI manager request = do
-  result <- embed (runClientM request (clientEnv manager))
-  mapError (const "Unable to communicate with Facebook.") $ fromEither result

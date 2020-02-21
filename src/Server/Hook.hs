@@ -6,6 +6,8 @@ import           Control.Monad.IO.Class
 import           Polysemy
 import           Polysemy.Error
 import           Polysemy.Reader
+import           Polysemy.Resource
+import           Polysemy.Trace
 
 import           Data.List.NonEmpty
 import           Data.Text
@@ -23,5 +25,5 @@ import           Server.Registry
 webhookMessage :: Config -> Messages -> Handler (NonEmpty (Either Text SendTextMessageResponse))
 webhookMessage config (Messages inputs) = mapM (liftIO . interpretProgram config . facebookProgram) inputs
 
-interpretProgram :: Config -> Sem '[FacebookEffect, Registry, LdapEffect, Reader Config, Error Text, Embed IO] a -> IO (Either Text a)
-interpretProgram config = runM . runError . runReader config  . runLdap . runRegistry . runFacebook
+interpretProgram :: Config -> Sem '[FacebookEffect, Registry, LdapEffect, Reader Config, Error Text, Resource, Trace, Embed IO] a -> IO (Either Text a)
+interpretProgram config = runM . traceToIO . runResource . runError . runReader config  . runLdap . runRegistry . runFacebook . logFacebook

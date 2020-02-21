@@ -3,7 +3,9 @@ module Client.Model (
   SendTextMessage(..),
   SendTextMessageRequest(..),
   SendTextMessageResponse(..),
-  GetUserInfoMessageResponse(..)
+  GetUserInfoMessageResponse(..),
+  ServiceMessageRequest(..),
+  SenderAction(..)
 ) where
 
 import           Data.Aeson
@@ -21,9 +23,22 @@ data SendTextMessageRequest = SendTextMessageRequest
   }
   deriving (Eq, Show, Generic, ToJSON)
 
-data SendTextMessageResponse = SendTextMessageResponse
+data SenderAction = TypingOff
+  | TypingOn
+  | MarkSeen
+  deriving (Eq, Show, Generic)
+
+instance ToJSON SenderAction where
+   toJSON = genericToJSON defaultOptions { constructorTagModifier = camelTo2 '_' }
+
+data ServiceMessageRequest = ServiceMessageRequest
+  { recipient     :: Base
+  , sender_action :: SenderAction
+  }
+  deriving (Eq, Show, Generic, ToJSON)
+
+newtype SendTextMessageResponse = SendTextMessageResponse
   { recipient_id :: String
-  , message_id   :: String
   }
   deriving (Eq, Show, Generic, FromJSON, ToJSON)
 
