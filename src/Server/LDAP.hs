@@ -84,7 +84,8 @@ enrichGroup (Value group) = validateObject "Group" =<< do
       And $ NE.fromList [
         Attr "objectClass" := "group",
         Attr "cn" := BS.pack (unpack group),
-        Or $ fmap (\orgunit -> Attr "distinguishedName" := distinguishedName group orgunit _projectGroupsContainer) _projectGroupsOrgunits]
+        Or $ fmap (\orgunit -> Attr "distinguishedName" := distinguishedName group orgunit _projectGroupsContainer) _projectGroupsOrgunits
+      ]
     )
     [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
   where

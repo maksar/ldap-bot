@@ -14,9 +14,9 @@ import           Data.Default
 import           GHC.Generics
 import qualified System.Environment as SE
 
-import           Data.Text
 import           Data.List.NonEmpty
-import           Prelude            hiding ( unwords )
+import           Data.Text
+import           Prelude            hiding ( lookup, unwords )
 
 import           Ldap.Client
 
@@ -44,30 +44,30 @@ data Config = Config
   deriving (Eq, Show, Generic, Default)
 
 data Environment m a where
-  LookupEnv :: Text -> Environment m Text
+  LookupEnv :: Text -> Environment m (Maybe String)
 
 makeSem ''Environment
 
-readConfig :: (Member Environment r) => Sem r Config
-readConfig = Config <$> lookupEnv "LDABOT_LDAP_HOST"
+readConfig :: (Member Environment r, Member (Error Text) r) => Sem r Config
+readConfig = Config <$> lookup "LDABOT_LDAP_HOST"
                     <*> readPort "LDABOT_LDAP_PORT"
                     <*> readPort "LDABOT_PORT"
-                    <*> lookupEnv "LDABOT_VERIFY_TOKEN"
-                    <*> lookupEnv "LDABOT_PAGE_TOKEN"
-                    <*> lookupEnv "LDABOT_USERNAME"
-                    <*> lookupEnv "LDABOT_PASSWORD"
-                    <*> (Dn <$> lookupEnv "LDABOT_USERS_CONTAINER")
-                    <*> (Dn <$> lookupEnv "LDABOT_GROUPS_CONTAINER")
-                    <*> (fromList . splitOn "," <$> lookupEnv "LDABOT_GROUPS_ORGUNITS")
+                    <*> lookup "LDABOT_VERIFY_TOKEN"
+                    <*> lookup "LDABOT_PAGE_TOKEN"
+                    <*> lookup "LDABOT_USERNAME"
+                    <*> lookup "LDABOT_PASSWORD"
+                    <*> (Dn <$> lookup "LDABOT_USERS_CONTAINER")
+                    <*> (Dn <$> lookup "LDABOT_GROUPS_CONTAINER")
+                    <*> (fromList . splitOn "," <$> lookup "LDABOT_GROUPS_ORGUNITS")
 
-readPort :: (Read a, Member Environment r) => Text -> Sem r a
-readPort name = read . unpack <$> lookupEnv name
+lookup :: (Member Environment r, Member (Error Text) r) => Text -> Sem r Text
+lookup name = lookupEnv name >>= \case
+    Nothing     -> throw $ unwords ["Please set", name, "environment variable."]
+    Just string -> return $ pack string
+
+readPort :: (Read a, Member Environment r, Member (Error Text) r) => Text -> Sem r a
+readPort name = read . unpack <$> lookup name
 
 runEnvironment :: (Member (Error Text) r, Member (Embed IO) r) => InterpreterFor Environment r
 runEnvironment = interpret $ \case
-  LookupEnv name -> do
-    result <- embed $ SE.lookupEnv $ unpack name
-    case result of
-      Nothing     -> throw $ unwords ["Please set", name, "evironment variable."]
-      Just ""     -> throw $ unwords ["Please set", name, "evironment variable to be not empty."]
-      Just string -> return $ pack string
+  LookupEnv name -> embed $ SE.lookupEnv $ unpack name

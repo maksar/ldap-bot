@@ -67,6 +67,7 @@ tests:
     - hspec-discover
     - QuickCheck
     - quickcheck-instances
+    - quickcheck-arbitrary-template
     - silently
 executables:
   ldabot-prod:

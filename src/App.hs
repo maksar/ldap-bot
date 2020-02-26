@@ -14,7 +14,7 @@ import           Network.Wai.Middleware.RequestLogger
 import           Env
 import           Server.API
 
-bot :: Members '[Environment, Embed IO] r => Sem r ()
+bot :: Members '[Environment, Error Text, Embed IO] r => Sem r ()
 bot = do
   config@Config {_port} <- readConfig
 
