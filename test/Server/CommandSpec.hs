@@ -37,8 +37,9 @@ spec = do
     it "parsed remove command" $
       parse "/remove username from group with spaces" `shouldBe` Right (Remove (Value "a.requester") (Value "username") (Value "group with spaces"))
 
-    it "parsed list command" $
+    it "parsed list command" $ do
       parse "/list of group with spaces" `shouldBe` Right (List (Value "a.requester") (Value "group with spaces"))
+      parse "/list group with spaces" `shouldBe` Right (List (Value "a.requester") (Value "group with spaces"))
 
   describe "command deconstruction" $ do
     it "deconstructs List command" $ property $ \(receiver, group) ->

@@ -15,9 +15,9 @@ import           Polysemy.Error
 import           Polysemy.Reader
 
 import qualified Data.ByteString.Char8 as BS
-import           Data.List             hiding ( drop, group, head, unlines, unwords )
+import           Data.List             hiding ( drop, group, head, isSuffixOf, unlines, unwords )
 import qualified Data.List.NonEmpty    as NE
-import           Data.Text             hiding ( concatMap, filter, group, head, map, null )
+import           Data.Text             hiding ( any, concatMap, filter, group, head, map, null, tail )
 import           Prelude               hiding ( drop, unlines, unwords )
 
 import           Ldap.Client
@@ -38,7 +38,7 @@ data GroupKnowledge = Owner
 
 groupKnowledge :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledge (Value (SearchEntry accountDn _)) (Value (SearchEntry _ groupAttrList)) =
-  case (elem accountDn $ managers groupAttrList, elem accountDn $ members groupAttrList) of
+  case (accountDn `elem` managers groupAttrList, accountDn `elem` members groupAttrList) of
     (True,  _)    -> Owner
     (False, True) -> Member
     _             -> None
@@ -75,21 +75,28 @@ enrichAccount (Value account) = validateObject "User" =<< do
     [Attr "dn"]
 
 enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
-enrichGroup (Value group) = validateObject "Group" =<< do
-  Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
+enrichGroup (Value group) = validateOrgunit =<< validateObject "Group" =<< do
+  Config {_projectGroupsContainer} <- ask
   searchLdap
     _projectGroupsContainer
     (scope WholeSubtree)
     (
       And $ NE.fromList [
         Attr "objectClass" := "group",
-        Attr "cn" := BS.pack (unpack group),
-        Or $ fmap (\orgunit -> Attr "distinguishedName" := distinguishedName group orgunit _projectGroupsContainer) _projectGroupsOrgunits
+        Or $ NE.fromList [
+          Attr "cn" := BS.pack (unpack group),
+          Attr "mailNickname" := BS.pack (unpack group)
+        ]
       ]
     )
     [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
-  where
-    distinguishedName cn container (Dn base) = BS.pack ("CN=" ++ unpack cn ++ ",OU=" ++ unpack container ++ "," ++ unpack base)
+
+validateOrgunit :: (Member (Error Text) r, Member (Reader Config) r) => Enriched Group -> Sem r (Enriched Group)
+validateOrgunit entry@(Value (SearchEntry (Dn dn) _)) = do
+  Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
+  if head (tail $ splitOn ",OU=" dn) `elem` _projectGroupsOrgunits
+    then return entry
+    else throw "Group cannot be managed."
 
 validateObject :: Member (Error Text) r => Text -> [SearchEntry] -> Sem r (Enriched b)
 validateObject object list = do
@@ -114,7 +121,7 @@ formatGroupMembers (SearchEntry dn attrList) =
     listGroup list = unlines $ sort $ map humanizeDn $ list attrList
 
 humanizeDn :: Dn -> Text
-humanizeDn (Dn dn) = unwords $ splitOn "\\, " $ dropEnd 1 $ drop 3 $ Prelude.head $ splitOn "OU=" dn
+humanizeDn (Dn dn) = unwords $ splitOn "\\, " $ dropEnd 1 $ drop 3 $ Prelude.head $ splitOn "OU=" dn -- TODO use real parsers
 
 managers :: AttrList [] -> [Dn]
 managers = extract [Attr "managedBy", Attr "msExchCoManagedByLink"]

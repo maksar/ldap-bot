@@ -1,5 +1,5 @@
 name: ldabot
-version: 0.2.0.0
+version: 0.3.0.0
 author: Alexander Shestakov
 copyright: 2020 Itransition
 maintainer: a.shestakov@itransition.com
@@ -34,8 +34,10 @@ dependencies:
 
 - polysemy >= 1.2.3.0
 - polysemy-plugin
+- lens
 
 - aeson
+- aeson-qq
 - data-default
 - text
 - bytestring

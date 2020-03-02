@@ -48,6 +48,7 @@ commandFromInput requester string = case words string of
   ("/add" : person : "to" : group)      -> return $ Append (Value requester) (Value person) (Value $ unwords group)
   ("/remove" : person : "from" : group) -> return $ Remove (Value requester) (Value person) (Value $ unwords group)
   ("/list" : "of" : group)              -> return $ List (Value requester) (Value $ unwords group)
+  ("/list" : group)                     -> return $ List (Value requester) (Value $ unwords group)
   _                                     -> throw $ unwords ["Unknown command:", string]
 
 deconstructCommand :: EnrichedCommand -> (Enriched Account, Enriched Account, Enriched Group)

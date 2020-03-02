@@ -2,7 +2,7 @@
 
 ## Setup
 
-To setup `greeting` and `gettting started` messages, execute:
+To setup `greeting` and `getting started` messages, execute:
 
     curl -X POST -H "Content-Type: application/json" -d '{"get_started":{"payload":"/help"}}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${LDABOT_PAGE_TOKEN}"
     curl -X POST -H "Content-Type: application/json" -d '{"greeting": [{"locale":"default","text":"Hello! I will help you to manage your project groups."}]}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${LDABOT_PAGE_TOKEN}"

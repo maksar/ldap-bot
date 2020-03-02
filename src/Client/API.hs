@@ -19,14 +19,14 @@ import           Client.Model
 type FBMessengerSendAPI =
        "me" :> "messages" :> ReqBody '[JSON] SendTextMessageRequest :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
   :<|> "me" :> "messages" :> ReqBody '[JSON] ServiceMessageRequest :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
-  :<|> "me" :> "messages" :> ReqBody '[PlainText] Text :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
+  :<|> "me" :> "messages" :> ReqBody '[JSON] HelpMessageRequest :> AccessTokenParam :> Post '[JSON] SendTextMessageResponse
   :<|> Capture "user_id" Text :> RequiredParam "fields" Text :> AccessTokenParam :> Get '[JSON] GetUserInfoMessageResponse
 
 type Token = Text
 
 sendTextMessage_ :: SendTextMessageRequest -> Token -> ClientM SendTextMessageResponse
 sendServiceMessage_ :: ServiceMessageRequest -> Token -> ClientM SendTextMessageResponse
-sendHelpMessage_ :: Text -> Token -> ClientM SendTextMessageResponse
+sendHelpMessage_ :: HelpMessageRequest -> Token -> ClientM SendTextMessageResponse
 getUserInfo_ :: Text -> Text -> Token -> ClientM GetUserInfoMessageResponse
 
 sendTextMessage_ :<|> sendServiceMessage_ :<|> sendHelpMessage_ :<|> getUserInfo_ = client (Proxy :: Proxy FBMessengerSendAPI)

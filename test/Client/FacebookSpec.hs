@@ -42,7 +42,7 @@ spec =
     context "Ldap operation fails with error" $ do
       it "sends help when needed" $
         test "/help" failing
-          (["Sending help to a.requester"],
+          (["Sending help message HelpMessageRequest {recipient_id = \"a.requester\"}"],
             Right $ SendTextMessageResponse "a.requester")
 
       it "send to facebook whatever it got from Ldap" $
@@ -55,7 +55,7 @@ spec =
     context "Ldap operation fails with error" $ do
       it "sends help when needed" $
         test "/help" successing
-          (["Sending help to a.requester"],
+          (["Sending help message HelpMessageRequest {recipient_id = \"a.requester\"}"],
             Right $ SendTextMessageResponse "a.requester")
 
       it "send to facebook whatever it got from Ldap" $
@@ -79,4 +79,4 @@ fakeFacebook handler = interpret $ \case
   SendText (SendTextMessageRequest (Base account) (SendTextMessage text)) -> return $ SendTextMessageResponse account
   GetInfo account -> return $ GetUserInfoMessageResponse "account_email@test.com"
   ServiceMessage (ServiceMessageRequest (Base account) action) -> return $ SendTextMessageResponse account
-  SendHelp account -> return $ SendTextMessageResponse (unpack account)
+  SendHelp (HelpMessageRequest recipient_id) -> return $ SendTextMessageResponse recipient_id

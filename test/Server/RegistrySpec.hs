@@ -100,11 +100,6 @@ spec =
           (["Getting information about group and a.user requested by a.requester"],
              Left "User is already a member of the group.")
 
-      it "fails when requester is an owner but account is already in the group as an owner" $
-        test "/add a.user to group" (successCommandRegistry Append Owner Owner)
-          (["Getting information about group and a.user requested by a.requester"],
-             Left "User is already an owner of the group.")
-
       it "succeeds when requester is an owner and account is not in the group yet" $
         test "/add a.user to group" (successCommandRegistry Append Owner None)
           (["Getting information about group and a.user requested by a.requester",

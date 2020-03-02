@@ -42,6 +42,5 @@ confirmCommand command@List {} _      _      = return $ Confirmed command
 confirmCommand _               Member _      = throw $ pack "You are not an owner of the group, just a member. So you cannot manage it."
 confirmCommand _               None   _      = throw $ pack "You are neither an owner nor a member of the group. So you cannot manage it."
 confirmCommand Append {}       Owner  Member = throw $ pack "User is already a member of the group."
-confirmCommand Append {}       Owner  Owner  = throw $ pack "User is already an owner of the group."
 confirmCommand Remove {}       Owner  None   = throw $ pack "There is no such user in a group."
 confirmCommand command         Owner  _      = return $ Confirmed command
