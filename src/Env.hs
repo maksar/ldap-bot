@@ -44,6 +44,7 @@ data Config = Config
   , _user                   :: Text
   , _password               :: Text
   , _activeUsersContainer   :: Dn
+  , _activeUsersOrgunits    :: NonEmpty Text
   , _projectGroupsContainer :: Dn
   , _projectGroupsOrgunits  :: NonEmpty Text
   }
@@ -66,6 +67,7 @@ settings = [
   ("LDABOT_USERNAME",         user),
   ("LDABOT_PASSWORD",         password),
   ("LDABOT_USERS_CONTAINER",  activeUsersContainer . isoDn),
+  ("LDABOT_USERS_ORGUNITS",   activeUsersOrgunits . isoNonEmpty . splitted),
   ("LDABOT_GROUPS_CONTAINER", projectGroupsContainer . isoDn),
   ("LDABOT_GROUPS_ORGUNITS",  projectGroupsOrgunits . isoNonEmpty . splitted)]
   where

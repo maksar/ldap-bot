@@ -66,42 +66,45 @@ enrichCommand command
   | (List requester group) <- command = liftM2 List (enrichAccount requester) (enrichGroup group)
 
 enrichAccount :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Account -> Sem r (Enriched Account)
-enrichAccount (Value account) = validateObject "User" =<< do
-  Config {_activeUsersContainer} <- ask
-  searchLdap
-    _activeUsersContainer
-    (scope SingleLevel)
-    (And $ NE.fromList [Attr "objectClass" := "person", Attr "sAMAccountName" := BS.pack (unpack account)])
-    [Attr "dn"]
+enrichAccount (Value account) = do
+  Config {_activeUsersContainer, _activeUsersOrgunits} <- ask
+  validateObject _activeUsersOrgunits "User" =<< searchLdap
+      _activeUsersContainer
+      (scope WholeSubtree)
+      (
+        And $ NE.fromList [
+          Attr "objectClass" := "person",
+          Attr "sAMAccountName" := BS.pack (unpack account)
+        ]
+      )
+      [Attr "dn"]
 
 enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
-enrichGroup (Value group) = validateOrgunit =<< validateObject "Group" =<< do
-  Config {_projectGroupsContainer} <- ask
-  searchLdap
-    _projectGroupsContainer
-    (scope WholeSubtree)
-    (
-      And $ NE.fromList [
-        Attr "objectClass" := "group",
-        Or $ NE.fromList [
-          Attr "cn" := BS.pack (unpack group),
-          Attr "mailNickname" := BS.pack (unpack group)
-        ]
-      ]
-    )
-    [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
-
-validateOrgunit :: (Member (Error Text) r, Member (Reader Config) r) => Enriched Group -> Sem r (Enriched Group)
-validateOrgunit entry@(Value (SearchEntry (Dn dn) _)) = do
+enrichGroup (Value group) = do
   Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
-  if head (tail $ splitOn ",OU=" dn) `elem` _projectGroupsOrgunits
-    then return entry
-    else throw "Group cannot be managed."
+  validateObject _projectGroupsOrgunits "Group" =<< searchLdap
+      _projectGroupsContainer
+      (scope WholeSubtree)
+      (
+        And $ NE.fromList [
+          Attr "objectClass" := "group",
+          Or $ NE.fromList [
+            Attr "cn" := BS.pack (unpack group),
+            Attr "mailNickname" := BS.pack (unpack group)
+          ]
+        ]
+      )
+      [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
-validateObject :: Member (Error Text) r => Text -> [SearchEntry] -> Sem r (Enriched b)
-validateObject object list = do
+validateObject :: Member (Error Text) r => NonEmpty Text -> Text -> [SearchEntry] -> Sem r (Enriched b)
+validateObject orgunits object list = do
   when (null list) $ throw $ unwords [object, "was not found."]
-  return $ Value $ head list
+
+  let entry@(SearchEntry (Dn dn) _) = head list
+
+  if head (tail $ splitOn ",OU=" dn) `elem` orgunits
+    then return $ Value entry
+    else throw $ unwords [object, "cannot be managed."]
 
 executeOperation :: Member LdapEffect r => ConfirmedCommand -> Sem r Text
 executeOperation (Confirmed command)

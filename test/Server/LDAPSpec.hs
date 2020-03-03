@@ -23,8 +23,15 @@ import           Env
 import           Server.Command
 import           Server.LDAP
 
-fake :: [Text] -> [(Text, [SearchEntry])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a)
-fake users groups = run . runWriter . runReader def { _activeUsersContainer = Dn "OU=users,OU=company", _projectGroupsContainer = Dn "OU=groups,OU=company", _projectGroupsOrgunits = "orgunit" :| [] } . runError . fakeLdap (makeUsers users) groups
+fake :: [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a)
+fake users groups =
+  let config = def {
+    _activeUsersContainer = Dn "OU=users,OU=company",
+    _activeUsersOrgunits = "active" :| [],
+    _projectGroupsContainer = Dn "OU=groups,OU=company",
+    _projectGroupsOrgunits = "orgunit" :| []
+  }
+  in run . runWriter . runReader config . runError . fakeLdap users groups
 
 fakeLdap :: (Member (Writer [Text]) r, Member (Reader Config) r) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Sem (LdapEffect : r) a -> Sem r a
 fakeLdap users groups = interpret $ \case
@@ -42,7 +49,7 @@ spec :: Spec
 spec =
   describe "LDAP operations" $ do
     context "enriching commands" $ do
-      let test :: (Show a, Eq a) => [Text] -> [(Text, [SearchEntry])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a) -> Expectation
+      let test :: (Show a, Eq a) => [(Text, [SearchEntry])] -> [(Text, [SearchEntry])] -> Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a) -> Expectation
           test users groups program expected = fake users groups program `shouldBe` expected
 
       context "enriching List command" $ do
@@ -54,16 +61,16 @@ spec =
               Left "User was not found.")
 
         it "fails when there is no group" $
-          test ["a.requester"] [] (enrichCommand command)
+          test (makeUsers [("a.requester", "active")]) [] (enrichCommand command)
             (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
               "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
               Left "Group was not found.")
 
         it "succeeds when there is a requester and a group" $
-          test ["a.requester"] (makeGroups [("group", "orgunit")]) (enrichCommand command)
+          test (makeUsers [("a.requester", "active")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
             (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
               "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
-              Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
+              Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
 
       forM_ [("Append", Append, Append),
              ("Remove", Remove, Remove)] $ \(name, parsedConstructor, enrichedConstructor) ->
@@ -75,39 +82,44 @@ spec =
                 Left "User was not found.")
 
           it "fails when there is no user" $
-            test ["a.requester"] [] (enrichCommand command)
+            test (makeUsers [("a.requester", "active")]) [] (enrichCommand command)
               (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
                 "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)"],
                 Left "User was not found.")
 
           it "fails when there is no group" $
-            test ["a.requester", "a.user"] [] (enrichCommand command)
+            test (makeUsers [("a.requester", "active"), ("a.user", "active")]) [] (enrichCommand command)
               (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
                 "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Left "Group was not found.")
 
+          it "fails when user is in another orgunit" $
+            test (makeUsers [("a.requester", "active"), ("a.user", "inactive")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
+              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)"],
+                Left "User cannot be managed.")
+
           it "fails when group is in another orgunit" $
-            test ["a.requester", "a.user"] (makeGroups [("group", "orgunit_another")]) (enrichCommand command)
+            test (makeUsers [("a.requester", "active"), ("a.user", "active")]) (makeGroups [("group", "orgunit_another")]) (enrichCommand command)
               (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
                 "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Left "Group cannot be managed.")
 
-
           it "succeeds when there is a requester and user and a group" $
-            test ["a.requester", "a.user"] (makeGroups [("group", "orgunit")]) (enrichCommand command)
+            test (makeUsers [("a.requester", "active"), ("a.user", "active")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
               (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
                 "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
-                Right (enrichedConstructor (Value (SearchEntry (Dn "CN=a.requester,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=a.user,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
+                Right (enrichedConstructor (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=a.user,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
 
     context "performs modifications" $ do
       let test :: (Show a, Eq a) => Sem '[LdapEffect, Error Text, Reader Config, Writer [Text]] a -> ([Text], Either Text a) -> Expectation
           test program expected = fake [] [] program `shouldBe` expected
 
       context "executing confirmed List command" $ do
-        let command attributes = Confirmed $ List undefined (makeGValue "group" "orgunit" attributes)
+        let command attributes = Confirmed $ List undefined (makeValue "group" "orgunit" "groups" attributes)
         it "succeeds when there is an empty group" $
           test (executeOperation $ command []) (
             [],
@@ -130,31 +142,31 @@ spec =
 
       context "executing confirmed Append command" $
         it "adds user to a group" $
-          test (executeOperation $ Confirmed $ Append undefined (makeUValue "a.user") (makeGValue "group" "orgunit" [])) (
-            ["Modifying in CN=group,OU=orgunit,OU=groups,OU=company with operation Add CN=a.user,OU=users,OU=company to member"],
+          test (executeOperation $ Confirmed $ Append undefined (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [])) (
+            ["Modifying in CN=group,OU=orgunit,OU=groups,OU=company with operation Add CN=a.user,OU=active,OU=users,OU=company to member"],
              Right "OK")
 
       context "executing confirmed Remove command" $
         it "adds user to a group" $
-          test (executeOperation $ Confirmed $ Remove undefined (makeUValue "a.user") (makeGValue "group" "orgunit" [])) (
-            ["Modifying in CN=group,OU=orgunit,OU=groups,OU=company with operation Delete CN=a.user,OU=users,OU=company from member"],
+          test (executeOperation $ Confirmed $ Remove undefined (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [])) (
+            ["Modifying in CN=group,OU=orgunit,OU=groups,OU=company with operation Delete CN=a.user,OU=active,OU=users,OU=company from member"],
              Right "OK")
 
       context "extracts knowledge about the group" $ do
         it "states that user has nothing common with the group" $
-          groupKnowledge (makeUValue "a.user") (makeGValue "group" "orgunit" []) `shouldBe` None
+          groupKnowledge (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" []) `shouldBe` None
 
         it "states that user is a member of a group if he is a member" $
-          groupKnowledge (makeUValue "a.user") (makeGValue "group" "orgunit" [member "a.user"]) `shouldBe` Member
+          groupKnowledge (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [member "a.user"]) `shouldBe` Member
 
         it "states that user is an owner of a group if he is a manager" $
-          groupKnowledge (makeUValue "a.user") (makeGValue "group" "orgunit" [managedBy "a.user"]) `shouldBe` Owner
+          groupKnowledge (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [managedBy "a.user"]) `shouldBe` Owner
 
         it "states that user is an owner of a group if he is a co-manager" $
-          groupKnowledge (makeUValue "a.user") (makeGValue "group" "orgunit" [coManagedBy "a.user"]) `shouldBe` Owner
+          groupKnowledge (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [coManagedBy "a.user"]) `shouldBe` Owner
 
         it "states that user is an owner of a group if he is a member and a manager" $
-          groupKnowledge (makeUValue "a.user") (makeGValue "group" "orgunit" [member "a.user", managedBy "a.user"]) `shouldBe` Owner
+          groupKnowledge (makeValue "a.user" "active" "users" []) (makeValue "group" "orgunit" "groups" [member "a.user", managedBy "a.user"]) `shouldBe` Owner
 
 showFilter :: Filter -> String
 showFilter (Attr attr := value)   = unpack attr ++ "=" ++ BS.unpack value
@@ -175,25 +187,17 @@ showOperation (Add (Attr attr) [value])    = "Add " ++ BS.unpack value ++ " to "
 showAttributes :: [Attr] -> Text
 showAttributes = intercalate ", " . map (\(Attr attr) -> attr)
 
-makeUValue :: Text -> Enriched Account
-makeUValue name = Value $ makeUSearchEntry name
+makeSearchEntry :: Text -> Text -> Text -> AttrList [] -> SearchEntry
+makeSearchEntry dn org kind = SearchEntry (Dn (makeCn dn org kind))
 
-makeUSearchEntry ::Text -> SearchEntry
-makeUSearchEntry dn = SearchEntry (Dn (makeUCn dn)) []
+makeValue :: Text -> Text -> Text -> AttrList [] -> Enriched a
+makeValue name org kind a = Value $ makeSearchEntry name org kind a
 
-makeGValue :: Text -> Text -> AttrList [] -> Enriched Group
-makeGValue name org a = Value $ makeGSearchEntry name org a
-
-makeGSearchEntry :: Text -> Text -> AttrList [] -> SearchEntry
-makeGSearchEntry dn org = SearchEntry (Dn (makeGCn dn org))
-  where
-    makeGCn name org = concat ["CN=", name, ",OU=", org, ",OU=groups,OU=company"]
-
-makeUsers :: [Text] -> [(Text, [SearchEntry])]
-makeUsers = map (\u -> (u, [makeUSearchEntry u]))
+makeUsers :: [(Text, Text)] -> [(Text, [SearchEntry])]
+makeUsers = map (\(name, org) -> (name, [makeSearchEntry name org "users" []]))
 
 makeGroups :: [(Text, Text)] -> [(Text, [SearchEntry])]
-makeGroups = map (\(name, org) -> (name, [makeGSearchEntry name org []]))
+makeGroups = map (\(name, org) -> (name, [makeSearchEntry name org "groups" []]))
 
 member :: Text -> (Attr, [BS.ByteString])
 member = makeAttribute "member"
@@ -205,7 +209,7 @@ coManagedBy :: Text -> (Attr, [BS.ByteString])
 coManagedBy = makeAttribute "msExchCoManagedByLink"
 
 makeAttribute :: Text -> Text -> (Attr, [BS.ByteString])
-makeAttribute name value = (Attr name, [BS.pack $ unpack $ makeUCn value])
+makeAttribute name value = (Attr name, [BS.pack $ unpack $ makeCn value "active" "users"])
 
-makeUCn :: Text -> Text
-makeUCn name = concat ["CN=", name, ",OU=users,OU=company"]
+makeCn :: Text -> Text -> Text -> Text
+makeCn name org kind = concat ["CN=", name, ",OU=", org, ",OU=", kind, ",OU=company"]
