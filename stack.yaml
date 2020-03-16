@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver:  lts-14.25
+resolver:  nightly-2020-03-09
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,9 +40,10 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-- ldap-client-0.4.0
-- polysemy-1.2.3.0
+- git: https://github.com/glatteis/ldap-client
+  commit: aa5409280e98263508bad4e79add6899f42f4c41
 - quickcheck-arbitrary-template-0.2.1.0
+- polysemy-plugin-0.2.5.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
@@ -67,3 +68,6 @@ extra-deps:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+docker:
+  enable: false
+  image: "fpco/stack-build-small:latest"

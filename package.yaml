@@ -32,7 +32,7 @@ default-extensions:
 dependencies:
 - base >= 4.7 && < 5
 
-- polysemy >= 1.2.3.0
+- polysemy
 - polysemy-plugin
 - lens
 

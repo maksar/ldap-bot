@@ -5,19 +5,19 @@
 
 packages:
 - completed:
-    hackage: ldap-client-0.4.0@sha256:48f6e03d8f812bd24e2601497ffe9c8a78907fa2266ba05abeefdfe99221617d,2208
+    cabal-file:
+      size: 2208
+      sha256: 48f6e03d8f812bd24e2601497ffe9c8a78907fa2266ba05abeefdfe99221617d
+    name: ldap-client
+    version: 0.4.0
+    git: https://github.com/glatteis/ldap-client
     pantry-tree:
-      size: 1705
-      sha256: 41b6640054587935b6c4e2f5104088961f28c59725d7ec081269432b4bce2b19
+      size: 6070
+      sha256: d5671a9418792562e4bebf828023637fd97df7291345ee6f1caefa7544e0b844
+    commit: aa5409280e98263508bad4e79add6899f42f4c41
   original:
-    hackage: ldap-client-0.4.0
-- completed:
-    hackage: polysemy-1.2.3.0@sha256:2345b6b76adc8f91fc88251129deff584cebcd07e952dd66aa512c69949df537,6097
-    pantry-tree:
-      size: 3625
-      sha256: 8d327bc0dcb178112b933626a33200e8714712a77eb348271fdfbdd326b03fec
-  original:
-    hackage: polysemy-1.2.3.0
+    git: https://github.com/glatteis/ldap-client
+    commit: aa5409280e98263508bad4e79add6899f42f4c41
 - completed:
     hackage: quickcheck-arbitrary-template-0.2.1.0@sha256:01f9deb34f8af3e6b879ee984b0be8803eb9c31e389490b5ddb8ca5fde32957c,2026
     pantry-tree:
@@ -25,9 +25,16 @@ packages:
       sha256: a79d0b9f39f1096774a34f502c209dc70c85bc43f164e2925cb6b7a3f7ad82c8
   original:
     hackage: quickcheck-arbitrary-template-0.2.1.0
+- completed:
+    hackage: polysemy-plugin-0.2.5.0@sha256:67e30be568a141b852aace1a60e180cb5060fbb2835365a81a3ea779536d6d35,2952
+    pantry-tree:
+      size: 1232
+      sha256: 5c90dac2eba48b4e337b302347c233ecaedb63e333641e094e718a548ac86711
+  original:
+    hackage: polysemy-plugin-0.2.5.0
 snapshots:
 - completed:
-    size: 524163
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/25.yaml
-    sha256: 97548b4e927a8a862d4a203687ca18a3f5d2ae75b4b72c946fb29c17df1a5082
-  original: lts-14.25
+    size: 499083
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2020/3/9.yaml
+    sha256: 50f89cfb4370c15e4224a34a2316214d54e8a62b19a379fc2b1dc57ea3d5f358
+  original: nightly-2020-03-09
