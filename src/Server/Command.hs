@@ -18,7 +18,7 @@ import           Polysemy
 import           Polysemy.Error
 
 import           Data.Text      hiding ( group )
-import           Prelude        hiding ( unwords, words )
+import           Prelude        hiding ( concat, unwords, words )
 
 import           Ldap.Client
 
@@ -45,11 +45,13 @@ newtype ConfirmedCommand = Confirmed EnrichedCommand
 
 commandFromInput :: Member (Error Text) r => Text -> Text -> Sem r ParsedCommand
 commandFromInput requester string = case words string of
-  ("/add" : person : "to" : group)      -> return $ Append (Value requester) (Value person) (Value $ unwords group)
-  ("/remove" : person : "from" : group) -> return $ Remove (Value requester) (Value person) (Value $ unwords group)
-  ("/list" : "of" : group)              -> return $ List (Value requester) (Value $ unwords group)
-  ("/list" : group)                     -> return $ List (Value requester) (Value $ unwords group)
-  _                                     -> throw $ unwords ["Unknown command:", string]
+  ("/add" : person : "to" : group)                    -> return $ Append (Value requester) (Value person) (Value $ unwords group)
+  ("/add" : lastName : firstName : "to" : group)      -> return $ Append (Value requester) (Value $ concat [lastName, ", ", firstName]) (Value $ unwords group)
+  ("/remove" : person : "from" : group)               -> return $ Remove (Value requester) (Value person) (Value $ unwords group)
+  ("/remove" : lastName : firstName : "from" : group) -> return $ Remove (Value requester) (Value $ concat [lastName, ", ", firstName]) (Value $ unwords group)
+  ("/list" : "of" : group)                            -> return $ List (Value requester) (Value $ unwords group)
+  ("/list" : group)                                   -> return $ List (Value requester) (Value $ unwords group)
+  _                                                   -> throw $ unwords ["Unknown command:", string]
 
 deconstructCommand :: EnrichedCommand -> (Enriched Account, Enriched Account, Enriched Group)
 deconstructCommand (List requester group)           = (requester, undefined, group)

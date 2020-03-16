@@ -74,7 +74,10 @@ enrichAccount (Value account) = do
       (
         And $ NE.fromList [
           Attr "objectClass" := "person",
-          Attr "sAMAccountName" := BS.pack (unpack account)
+          Or $ NE.fromList [
+            Attr "cn" := BS.pack (unpack account),
+            Attr "sAMAccountName" := BS.pack (unpack account)
+          ]
         ]
       )
       [Attr "dn"]

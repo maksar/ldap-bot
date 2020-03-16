@@ -31,11 +31,13 @@ spec = do
     it "fails to parse unknown command" $
       parse "/unknown command" `shouldBe` Left "Unknown command: /unknown command"
 
-    it "parsed add command" $
+    it "parsed add command" $ do
       parse "/add username to group with spaces" `shouldBe` Right (Append (Value "a.requester") (Value "username") (Value "group with spaces"))
+      parse "/add last first to group with spaces" `shouldBe` Right (Append (Value "a.requester") (Value "last, first") (Value "group with spaces"))
 
-    it "parsed remove command" $
+    it "parsed remove command" $ do
       parse "/remove username from group with spaces" `shouldBe` Right (Remove (Value "a.requester") (Value "username") (Value "group with spaces"))
+      parse "/remove last first from group with spaces" `shouldBe` Right (Remove (Value "a.requester") (Value "last, first") (Value "group with spaces"))
 
     it "parsed list command" $ do
       parse "/list of group with spaces" `shouldBe` Right (List (Value "a.requester") (Value "group with spaces"))

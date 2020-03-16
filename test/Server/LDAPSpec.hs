@@ -57,18 +57,18 @@ spec =
 
         it "fails when there is no requester" $
           test [] [] (enrichCommand command)
-            (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)"],
+            (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)"],
               Left "User was not found.")
 
         it "fails when there is no group" $
           test (makeUsers [("a.requester", "active")]) [] (enrichCommand command)
-            (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+            (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
               "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
               Left "Group was not found.")
 
         it "succeeds when there is a requester and a group" $
           test (makeUsers [("a.requester", "active")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
-            (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
+            (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
               "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
               Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
 
@@ -78,39 +78,39 @@ spec =
           let command = parsedConstructor (Value "a.requester") (Value "a.user") (Value "group")
           it "fails when there is no requester" $
             test [] [] (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)"],
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)"],
                 Left "User was not found.")
 
           it "fails when there is no user" $
             test (makeUsers [("a.requester", "active")]) [] (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
-                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)"],
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.user or sAMAccountName=a.user) and attributes (dn)"],
                 Left "User was not found.")
 
           it "fails when there is no group" $
             test (makeUsers [("a.requester", "active"), ("a.user", "active")]) [] (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
-                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.user or sAMAccountName=a.user) and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Left "Group was not found.")
 
           it "fails when user is in another orgunit" $
             test (makeUsers [("a.requester", "active"), ("a.user", "inactive")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
-                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)"],
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.user or sAMAccountName=a.user) and attributes (dn)"],
                 Left "User cannot be managed.")
 
           it "fails when group is in another orgunit" $
             test (makeUsers [("a.requester", "active"), ("a.user", "active")]) (makeGroups [("group", "orgunit_another")]) (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
-                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.user or sAMAccountName=a.user) and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Left "Group cannot be managed.")
 
           it "succeeds when there is a requester and user and a group" $
             test (makeUsers [("a.requester", "active"), ("a.user", "active")]) (makeGroups [("group", "orgunit")]) (enrichCommand command)
-              (["Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.requester and attributes (dn)",
-                "Searching in OU=users,OU=company with filter objectClass=person and sAMAccountName=a.user and attributes (dn)",
+              (["Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.user or sAMAccountName=a.user) and attributes (dn)",
                 "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"],
                 Right (enrichedConstructor (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=a.user,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") []))))
 
@@ -176,7 +176,8 @@ showFilter (And (first :| []))    = showFilter first
 showFilter (And (first :| rest))  = showFilter first ++ " and " ++ showFilter (And $ fromList rest)
 
 extractFilter :: Filter -> Text
-extractFilter (And (Attr "objectClass" := "person" :| [Attr "sAMAccountName" := value])) = pack $ BS.unpack value
+extractFilter (And (Attr "objectClass" := "person" :| [Or (Attr "cn" := valueCn :| [Attr "sAMAccountName" := valueAccountName])]))
+  | valueCn == valueAccountName = pack $ BS.unpack valueCn
 extractFilter (And (Attr "objectClass" := "group" :| [Or (Attr "cn" := valueCn :| [Attr "mailNickname" := valueNickname])]))
   | valueCn == valueNickname = pack $ BS.unpack valueCn
 
