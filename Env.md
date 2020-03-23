@@ -221,8 +221,8 @@ makeLenses ''Material
 makeLenses ''Player
 
 let players = [Player "Bender" (Material "metal" (Color "shiny"))
-              ,Player "Fry" (Material "meet" (Color "yellow"))
-              ,Player "Leela" (Material "meet" (Color "purple"))]
+              ,Player "Fry" (Material "meat" (Color "yellow"))
+              ,Player "Leela" (Material "meat" (Color "purple"))]
 ```
 
 Можно выполнять нетривиальные операции "вглубь" на immutable данных используя "композицию линз" через знакомый оператор `.`:
@@ -236,8 +236,8 @@ let players = [Player "Bender" (Material "metal" (Color "shiny"))
 
 < map (over (material.color.shade) (append "super_")) players
 > [Player {_name = "Bender", _material = Material {_kind = "metal", _color = Color {_shade = "super_shiny"}}}
-  ,Player {_name = "Fry", _material = Material {_kind = "meet", _color = Color {_shade = "super_yellow"}}}
-  ,Player {_name = "Leela", _material = Material {_kind = "meet", _color = Color {_shade = "super_purple"}}}]
+  ,Player {_name = "Fry", _material = Material {_kind = "meat", _color = Color {_shade = "super_yellow"}}}
+  ,Player {_name = "Leela", _material = Material {_kind = "meat", _color = Color {_shade = "super_purple"}}}]
 ```
 
 Последний пример особенно нагляден, если бы не линзы, пришлось бы писать что-то вроде:
