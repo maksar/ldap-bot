@@ -11,12 +11,13 @@ module Client.Model (
 
 import           Data.Aeson
 import           Data.Aeson.QQ
+import           Data.Text
 import           GHC.Generics
 
-newtype Base = Base { id :: String }
+newtype Base = Base { id :: Text }
     deriving ( Eq, Show, Generic, ToJSON )
 
-newtype SendTextMessage = SendTextMessage { text :: String }
+newtype SendTextMessage = SendTextMessage { text :: Text }
     deriving ( Eq, Show, Generic, ToJSON )
 
 data SendTextMessageRequest = SendTextMessageRequest
@@ -40,17 +41,17 @@ data ServiceMessageRequest = ServiceMessageRequest
   deriving (Eq, Show, Generic, ToJSON)
 
 newtype SendTextMessageResponse = SendTextMessageResponse
-  { recipient_id :: String
+  { recipient_id :: Text
   }
   deriving (Eq, Show, Generic, FromJSON, ToJSON)
 
 newtype GetUserInfoMessageResponse = GetUserInfoMessageResponse
-  { email :: String
+  { email :: Text
   }
   deriving (Eq, Show, Generic, FromJSON)
 
 newtype HelpMessageRequest = HelpMessageRequest
-  { recipient_id :: String
+  { recipient_id :: Text
   }
   deriving (Eq, Show)
 

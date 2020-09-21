@@ -8,13 +8,15 @@ import           Control.Monad
 
 import           Data.Aeson
 import           Data.List.NonEmpty  hiding ( toList )
+import           Data.Text
 import           GHC.Generics
 import           Data.Foldable
 import           Prelude             hiding ( mapM )
 
+
 data Message = Message
-  { sender_id :: String
-  , text      :: String
+  { sender :: Text
+  , text      :: Text
   }
   deriving (Eq, Show, Read, Generic)
 

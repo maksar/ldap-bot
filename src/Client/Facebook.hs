@@ -36,22 +36,21 @@ data FacebookEffect m a where
 makeSem ''FacebookEffect
 
 facebookProgram :: (Member Resource r, Member FacebookEffect r, Member (Error Text) r) => Message -> Sem r SendTextMessageResponse
-facebookProgram Message {sender_id, text} = do
-  let sender = pack sender_id
+facebookProgram Message {sender, text} = do
 
   bracket
-    (serviceMessage $ ServiceMessageRequest (Base $ unpack sender) TypingOn)
-    (const $ mapM_ serviceMessage [ServiceMessageRequest (Base $ unpack sender) TypingOff, ServiceMessageRequest (Base $ unpack sender) MarkSeen]) $ const $
-    if text == "/help" then sendHelp $ HelpMessageRequest $ unpack sender
+    (serviceMessage $ ServiceMessageRequest (Base sender) TypingOn)
+    (const $ mapM_ serviceMessage [ServiceMessageRequest (Base sender) TypingOff, ServiceMessageRequest (Base sender) MarkSeen]) $ const $
+    if text == "/help" then sendHelp $ HelpMessageRequest sender
     else do
       GetUserInfoMessageResponse {email} <- getInfo sender
-      result <- modifyGroup (pack text) (takeWhile (/= '@') $ pack email) `catch` return
-      sendText $ SendTextMessageRequest (Base $ unpack sender) $ SendTextMessage $ unpack result
+      result <- modifyGroup text (takeWhile (/= '@') email) `catch` return
+      sendText $ SendTextMessageRequest (Base sender) $ SendTextMessage result
 
 logFacebook :: (Member FacebookEffect r, Member Trace r) => Sem r a -> Sem r a
 logFacebook = intercept $ \case
   ModifyGroup input email -> do
-    trace $ unwords ["Executing request", unpack input, "by", unpack email]
+    trace $ unwords ["Executing request", show input, "by", unpack email]
     modifyGroup input email
   SendText message -> do
     trace $ unwords ["Sending text message", show message]
