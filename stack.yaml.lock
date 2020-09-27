@@ -5,19 +5,12 @@
 
 packages:
 - completed:
-    cabal-file:
-      size: 2208
-      sha256: 48f6e03d8f812bd24e2601497ffe9c8a78907fa2266ba05abeefdfe99221617d
-    name: ldap-client
-    version: 0.4.0
-    git: https://github.com/glatteis/ldap-client
+    hackage: ldap-client-0.4.1@sha256:39655d36a87a638bab3de23b81b208322e4e63b539f966564fcb19d214853856,2225
     pantry-tree:
-      size: 6070
-      sha256: d5671a9418792562e4bebf828023637fd97df7291345ee6f1caefa7544e0b844
-    commit: aa5409280e98263508bad4e79add6899f42f4c41
+      size: 1705
+      sha256: b67591df253d467238b67ec4bab84e13ba66adae47e57538747bbc30d593eca1
   original:
-    git: https://github.com/glatteis/ldap-client
-    commit: aa5409280e98263508bad4e79add6899f42f4c41
+    hackage: ldap-client-0.4.1
 - completed:
     hackage: quickcheck-arbitrary-template-0.2.1.0@sha256:01f9deb34f8af3e6b879ee984b0be8803eb9c31e389490b5ddb8ca5fde32957c,2026
     pantry-tree:
@@ -26,22 +19,15 @@ packages:
   original:
     hackage: quickcheck-arbitrary-template-0.2.1.0
 - completed:
-    hackage: polysemy-plugin-0.2.5.0@sha256:67e30be568a141b852aace1a60e180cb5060fbb2835365a81a3ea779536d6d35,2952
+    hackage: polysemy-plugin-0.2.5.1@sha256:61c6c0aad2852377aa5d5a8f9639a437905e3a6f0e2a99a41e96fb231dc86836,2952
     pantry-tree:
       size: 1232
-      sha256: 5c90dac2eba48b4e337b302347c233ecaedb63e333641e094e718a548ac86711
+      sha256: 9720d9a1675c7ac3e2635b8c9f002f7ab0764eb60738a3405603cb33bdffc493
   original:
-    hackage: polysemy-plugin-0.2.5.0
-- completed:
-    hackage: polysemy-1.3.0.0@sha256:bf1d559c7e26e8a0ed31fc45d84635e329a4a31bfd39e713a39adf639bcbd309,6141
-    pantry-tree:
-      size: 4309
-      sha256: 770af8c91981ccb8fe388ba62897fdf4eb394df433ab10def66d6e111b6f09f7
-  original:
-    hackage: polysemy-1.3.0.0
+    hackage: polysemy-plugin-0.2.5.1
 snapshots:
 - completed:
-    size: 491163
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/4.yaml
-    sha256: bc60043a06b58902b533baa80fb566c0ec495c41e428bc0f8c1e8c15b2a4c468
-  original: lts-15.4
+    size: 532380
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/15.yaml
+    sha256: 3b5f2a699aa5ed3abbc30410062bf743926f0868ce3eeb5655370c6c6cc1a9f4
+  original: lts-16.15

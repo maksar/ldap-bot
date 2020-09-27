@@ -48,7 +48,7 @@ spec =
       it "send to facebook whatever it got from Ldap" $
         test "/command" failing
           (["Getting info about a.requester",
-            "Executing request \"/command\" by account_email",
+            "Executing request /command by account_email",
             "Sending text message SendTextMessageRequest {recipient = Base {id = \"a.requester\"}, message = SendTextMessage {text = \"Error\"}}"],
             Right $ SendTextMessageResponse "a.requester")
 
@@ -61,7 +61,7 @@ spec =
       it "send to facebook whatever it got from Ldap" $
         test "/command" successing
           (["Getting info about a.requester",
-            "Executing request \"/command\" by account_email",
+            "Executing request /command by account_email",
             "Sending text message SendTextMessageRequest {recipient = Base {id = \"a.requester\"}, message = SendTextMessage {text = \"OK\"}}"],
             Right $ SendTextMessageResponse "a.requester")
 

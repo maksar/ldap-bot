@@ -65,5 +65,3 @@ instance ToJSON HelpMessageRequest where
             { title: "To remove a person from a group, try command:", subtitle: "/remove a.person from ITRBY.Management", buttons: [{title: "/remove a.person from ITRBY.Management", type: "postback", payload: "/remove a.person from ITRBY.Management"}] },
             { title: "To get this help message, use command:", buttons: [{title: "/help", type: "postback", payload: "/help"}] } ] } } } }
   |]
-
-

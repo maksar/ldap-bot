@@ -37,7 +37,6 @@ makeSem ''FacebookEffect
 
 facebookProgram :: (Member Resource r, Member FacebookEffect r, Member (Error Text) r) => Message -> Sem r SendTextMessageResponse
 facebookProgram Message {sender, text} = do
-
   bracket
     (serviceMessage $ ServiceMessageRequest (Base sender) TypingOn)
     (const $ mapM_ serviceMessage [ServiceMessageRequest (Base sender) TypingOff, ServiceMessageRequest (Base sender) MarkSeen]) $ const $
@@ -50,7 +49,7 @@ facebookProgram Message {sender, text} = do
 logFacebook :: (Member FacebookEffect r, Member Trace r) => Sem r a -> Sem r a
 logFacebook = intercept $ \case
   ModifyGroup input email -> do
-    trace $ unwords ["Executing request", show input, "by", unpack email]
+    trace $ unwords ["Executing request", unpack input, "by", unpack email]
     modifyGroup input email
   SendText message -> do
     trace $ unwords ["Sending text message", show message]

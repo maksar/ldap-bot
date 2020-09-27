@@ -7,6 +7,7 @@ LATEST := ${NAME}:latest
 all: build push
 
 build:
+	@docker pull alpine
 	@stack test --docker && stack install --docker && docker build -t ${NAME} .
 	@docker tag ${NAME} ${IMG}
 	@docker tag ${IMG} ${REPO}/${IMG}
