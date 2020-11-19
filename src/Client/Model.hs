@@ -1,42 +1,51 @@
-module Client.Model (
-  Base(..),
-  SendTextMessage(..),
-  SendTextMessageRequest(..),
-  SendTextMessageResponse(..),
-  GetUserInfoMessageResponse(..),
-  ServiceMessageRequest(..),
-  SenderAction(..),
-  HelpMessageRequest(..)
-) where
+module Client.Model
+  ( Base (..),
+    SendTextMessage (..),
+    SendTextMessageRequest (..),
+    SendTextMessageResponse (..),
+    GetUserInfoMessageResponse (..),
+    ServiceMessageRequest (..),
+    SenderAction (..),
+    HelpMessageRequest (..),
+  )
+where
 
-import           Data.Aeson
-import           Data.Aeson.QQ
-import           Data.Text
-import           GHC.Generics
+import Data.Aeson
+  ( FromJSON,
+    Options (constructorTagModifier),
+    ToJSON (toJSON),
+    camelTo2,
+    defaultOptions,
+    genericToJSON,
+  )
+import Data.Aeson.QQ (aesonQQ)
+import Data.Text (Text)
+import GHC.Generics (Generic)
 
-newtype Base = Base { id :: Text }
-    deriving ( Eq, Show, Generic, ToJSON )
+newtype Base = Base {id :: Text}
+  deriving (Eq, Show, Generic, ToJSON)
 
-newtype SendTextMessage = SendTextMessage { text :: Text }
-    deriving ( Eq, Show, Generic, ToJSON )
+newtype SendTextMessage = SendTextMessage {text :: Text}
+  deriving (Eq, Show, Generic, ToJSON)
 
 data SendTextMessageRequest = SendTextMessageRequest
-  { recipient :: Base
-  , message   :: SendTextMessage
+  { recipient :: Base,
+    message :: SendTextMessage
   }
   deriving (Eq, Show, Generic, ToJSON)
 
-data SenderAction = TypingOff
+data SenderAction
+  = TypingOff
   | TypingOn
   | MarkSeen
   deriving (Eq, Show, Generic)
 
 instance ToJSON SenderAction where
-   toJSON = genericToJSON defaultOptions { constructorTagModifier = camelTo2 '_' }
+  toJSON = genericToJSON defaultOptions {constructorTagModifier = camelTo2 '_'}
 
 data ServiceMessageRequest = ServiceMessageRequest
-  { recipient     :: Base
-  , sender_action :: SenderAction
+  { recipient :: Base,
+    sender_action :: SenderAction
   }
   deriving (Eq, Show, Generic, ToJSON)
 
@@ -56,7 +65,8 @@ newtype HelpMessageRequest = HelpMessageRequest
   deriving (Eq, Show)
 
 instance ToJSON HelpMessageRequest where
-  toJSON HelpMessageRequest {recipient_id} = [aesonQQ|
+  toJSON HelpMessageRequest {recipient_id} =
+    [aesonQQ|
     { recipient: { id: #{recipient_id} },
       message: { attachment: { type: "template", payload: {
           template_type: "list", top_element_style: "compact", elements: [

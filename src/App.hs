@@ -1,18 +1,25 @@
-module App (
-  bot,
-  runBot
-) where
+module App
+  ( bot,
+    runBot,
+  )
+where
 
-import           Polysemy
-import           Polysemy.Error
-
-import           Data.Text
-
-import           Network.Wai.Handler.Warp
-import           Network.Wai.Middleware.RequestLogger
-
-import           Env
-import           Server.API
+import Data.Text (Text)
+import Env
+  ( Config (Config, _port),
+    Environment,
+    readConfig,
+    runEnvironment,
+  )
+import Network.Wai.Handler.Warp
+  ( defaultSettings,
+    runSettings,
+    setPort,
+  )
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
+import Polysemy (Embed, Members, Sem, embed, runM)
+import Polysemy.Error (Error, runError)
+import Server.API (app)
 
 bot :: Members '[Environment, Error Text, Embed IO] r => Sem r ()
 bot = do

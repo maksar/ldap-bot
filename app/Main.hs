@@ -1,9 +1,8 @@
 module Main where
 
-import           Main.Utf8
-import           Data.Text
-
-import           App
+import App (bot, runBot)
+import Data.Text (unpack)
+import Main.Utf8 (withUtf8)
 
 main :: IO ()
 main = withUtf8 $ runBot bot >>= either (putStrLn . unpack) return

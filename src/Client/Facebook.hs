@@ -1,30 +1,51 @@
-module Client.Facebook (
-  FacebookEffect(..),
-  runFacebook,
-  logFacebook,
-  facebookProgram
-) where
+module Client.Facebook
+  ( FacebookEffect (..),
+    runFacebook,
+    logFacebook,
+    facebookProgram,
+  )
+where
 
-import           Control.Monad
-import           Polysemy
-import           Polysemy.Error
-import           Polysemy.Reader
-import           Polysemy.Resource
-import           Polysemy.Trace
-
-import           Data.Text               hiding ( filter, unwords )
-import           Prelude                 hiding ( takeWhile )
-
-import           Network.HTTP.Client
-import           Network.HTTP.Client.TLS
-
-import           Servant.Client
-
-import           Client.API
-import           Client.Model            hiding ( text )
-import           Env
-import           Server.Model
-import           Server.Registry
+import Client.API
+  ( Token,
+    clientEnv,
+    getUserInfo_,
+    sendHelpMessage_,
+    sendServiceMessage_,
+    sendTextMessage_,
+  )
+import Client.Model
+  ( Base (Base),
+    GetUserInfoMessageResponse (..),
+    HelpMessageRequest (HelpMessageRequest),
+    SendTextMessage (SendTextMessage),
+    SendTextMessageRequest (SendTextMessageRequest),
+    SendTextMessageResponse,
+    SenderAction (MarkSeen, TypingOff, TypingOn),
+    ServiceMessageRequest (ServiceMessageRequest),
+  )
+import Data.Text (Text, takeWhile, unpack)
+import Env (Config (Config, _pageToken))
+import Network.HTTP.Client (ManagerSettings, newManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Polysemy
+  ( Embed,
+    InterpreterFor,
+    Member,
+    Sem,
+    embed,
+    intercept,
+    interpret,
+    makeSem,
+  )
+import Polysemy.Error (Error, catch, fromEither, mapError)
+import Polysemy.Reader (Reader, ask)
+import Polysemy.Resource (Resource, bracket)
+import Polysemy.Trace (Trace, trace)
+import Servant.Client (ClientM, runClientM)
+import Server.Model (Message (..))
+import Server.Registry (Registry, registryProgram)
+import Prelude hiding (takeWhile)
 
 data FacebookEffect m a where
   SendText :: SendTextMessageRequest -> FacebookEffect m SendTextMessageResponse
@@ -39,12 +60,14 @@ facebookProgram :: (Member Resource r, Member FacebookEffect r, Member (Error Te
 facebookProgram Message {sender, text} = do
   bracket
     (serviceMessage $ ServiceMessageRequest (Base sender) TypingOn)
-    (const $ mapM_ serviceMessage [ServiceMessageRequest (Base sender) TypingOff, ServiceMessageRequest (Base sender) MarkSeen]) $ const $
-    if text == "/help" then sendHelp $ HelpMessageRequest sender
-    else do
-      GetUserInfoMessageResponse {email} <- getInfo sender
-      result <- modifyGroup text (takeWhile (/= '@') email) `catch` return
-      sendText $ SendTextMessageRequest (Base sender) $ SendTextMessage result
+    (const $ mapM_ serviceMessage [ServiceMessageRequest (Base sender) TypingOff, ServiceMessageRequest (Base sender) MarkSeen])
+    $ const $
+      if text == "/help"
+        then sendHelp $ HelpMessageRequest sender
+        else do
+          GetUserInfoMessageResponse {email} <- getInfo sender
+          result <- modifyGroup text (takeWhile (/= '@') email) `catch` return
+          sendText $ SendTextMessageRequest (Base sender) $ SendTextMessage result
 
 logFacebook :: (Member FacebookEffect r, Member Trace r) => Sem r a -> Sem r a
 logFacebook = intercept $ \case

@@ -1,16 +1,14 @@
-module Server.VerifySpec (
-  spec
-) where
+module Server.VerifySpec
+  ( spec,
+  )
+where
 
-import           Test.Hspec
-
-import           Data.Default
-import           System.IO.Silently
-
-import           Servant.Server
-
-import           Env
-import           Server.Verify
+import Data.Default (Default (def))
+import Env (Config (_verifyToken))
+import Servant.Server (err500, runHandler)
+import Server.Verify (webhookVerify)
+import System.IO.Silently (silence)
+import Test.Hspec (Spec, context, describe, it, shouldReturn)
 
 spec :: Spec
 spec =
