@@ -362,6 +362,9 @@
         };
       };
   extras = hackage:
-    { packages = { ldabot = ./.plan.nix/ldabot.nix; }; };
-  modules = [ ({ lib, ... }: { packages = { "ldabot" = { flags = {}; }; }; }) ];
+    { packages = { ldap-bot = ./.plan.nix/ldap-bot.nix; }; };
+  modules = [
+    ({ lib, ... }:
+      { packages = { "ldap-bot" = { flags = {}; }; }; })
+    ];
   }

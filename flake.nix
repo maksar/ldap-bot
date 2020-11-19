@@ -1,5 +1,5 @@
 {
-  description = "LDAbot Flake";
+  description = "LDAP-bot Flake";
 
   inputs = {
     flake-utils = {
@@ -12,7 +12,7 @@
   };
 
   outputs = { self, flake-utils, haskell-nix }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ]
+    flake-utils.lib.eachSystem (builtins.attrNames haskell-nix.legacyPackages)
       (system:
         with haskell-nix.legacyPackages.${system};
         let
@@ -24,17 +24,17 @@
               src = ./.;
             };
             index-state = "2020-11-19T00:00:00Z";
-            plan-sha256 = "08256pxhqb5rgxh605kxb4d8vpqvnvva8r7j5584hrblj9zrgnx0";
-            materialized = ./materialized/project;
+            plan-sha256 = "172yx82pjs5pzgxc9mc3a1q4p4zfajv3m7hwxg7nkvqrzici7k0w";
+            materialized = ./materialized/ldap-bot;
           };
         in
         rec {
           defaultApp = {
             type = "app";
-            program = "${defaultPackage}/bin/ldabot-exe";
+            program = "${defaultPackage}/bin/ldap-bot-exe";
           };
 
-          defaultPackage = project.ldabot.components.exes.ldabot-exe;
+          defaultPackage = project.ldap-bot.components.exes.ldap-bot-exe;
 
           devShell = project.shellFor {
             tools = {
@@ -55,6 +55,12 @@
                 index-state = "2020-11-19T00:00:00Z";
                 plan-sha256 = "1slrp7dm1fnl9sp1hiby5ncah8x52k7hz1mc4sa619i0hl9nhfq8";
                 materialized = ./materialized/hoogle;
+              };
+              hspec-discover = {
+                version = "2.7.4";
+                index-state = "2020-11-19T00:00:00Z";
+                plan-sha256 = "09c6s3mkq1v5iypwiwfhkphxnxrvrwpxq947vmgvald8g0r6sbij";
+                materialized = ./materialized/hspec-discover;
               };
             };
           };

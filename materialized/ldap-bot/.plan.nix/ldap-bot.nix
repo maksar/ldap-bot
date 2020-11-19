@@ -11,7 +11,7 @@
     flags = {};
     package = {
       specVersion = "2.0";
-      identifier = { name = "ldabot"; version = "0.4.0.0"; };
+      identifier = { name = "ldap-bot"; version = "0.5.0.0"; };
       license = "NONE";
       copyright = "2020 Itransition";
       maintainer = "a.shestakov@itransition.com";
@@ -55,7 +55,6 @@
           ];
         buildable = true;
         modules = [
-          "Paths_ldabot"
           "API"
           "App"
           "Client/API"
@@ -73,7 +72,7 @@
         hsSourceDirs = [ "src" ];
         };
       exes = {
-        "ldabot-exe" = {
+        "ldap-bot-exe" = {
           depends = [
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
             (hsPkgs."aeson-qq" or (errorHandler.buildDepError "aeson-qq"))
@@ -83,7 +82,7 @@
             (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
             (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
             (hsPkgs."http-client-tls" or (errorHandler.buildDepError "http-client-tls"))
-            (hsPkgs."ldabot" or (errorHandler.buildDepError "ldabot"))
+            (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
             (hsPkgs."ldap-client" or (errorHandler.buildDepError "ldap-client"))
             (hsPkgs."lens" or (errorHandler.buildDepError "lens"))
             (hsPkgs."neat-interpolation" or (errorHandler.buildDepError "neat-interpolation"))
@@ -97,13 +96,12 @@
             (hsPkgs."with-utf8" or (errorHandler.buildDepError "with-utf8"))
             ];
           buildable = true;
-          modules = [ "Paths_ldabot" ];
           hsSourceDirs = [ "app" ];
           mainPath = [ "Main.hs" ];
           };
         };
       tests = {
-        "ldabot-test" = {
+        "ldap-bot-test" = {
           depends = [
             (hsPkgs."QuickCheck" or (errorHandler.buildDepError "QuickCheck"))
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
@@ -116,7 +114,7 @@
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
             (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
             (hsPkgs."http-client-tls" or (errorHandler.buildDepError "http-client-tls"))
-            (hsPkgs."ldabot" or (errorHandler.buildDepError "ldabot"))
+            (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
             (hsPkgs."ldap-client" or (errorHandler.buildDepError "ldap-client"))
             (hsPkgs."lens" or (errorHandler.buildDepError "lens"))
             (hsPkgs."neat-interpolation" or (errorHandler.buildDepError "neat-interpolation"))
@@ -141,7 +139,6 @@
             "Server/MessagesSpec"
             "Server/RegistrySpec"
             "Server/VerifySpec"
-            "Paths_ldabot"
             ];
           hsSourceDirs = [ "test" ];
           mainPath = [ "Spec.hs" ];

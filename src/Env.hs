@@ -76,17 +76,17 @@ makeSem ''Environment
 
 settings :: Functor f => [(Text, (Text -> f Text) -> Config -> f Config)]
 settings =
-  [ ("LDABOT_LDAP_HOST", ldapHost),
-    ("LDABOT_LDAP_PORT", ldapPort . isoRead . packed),
-    ("LDABOT_PORT", port . isoRead . packed),
-    ("LDABOT_VERIFY_TOKEN", verifyToken),
-    ("LDABOT_PAGE_TOKEN", pageToken),
-    ("LDABOT_USERNAME", user),
-    ("LDABOT_PASSWORD", password),
-    ("LDABOT_USERS_CONTAINER", activeUsersContainer . isoDn),
-    ("LDABOT_USERS_ORGUNITS", activeUsersOrgunits . isoNonEmpty . splitted),
-    ("LDABOT_GROUPS_CONTAINER", projectGroupsContainer . isoDn),
-    ("LDABOT_GROUPS_ORGUNITS", projectGroupsOrgunits . isoNonEmpty . splitted)
+  [ ("LDAP_BOT_LDAP_HOST", ldapHost),
+    ("LDAP_BOT_LDAP_PORT", ldapPort . isoRead . packed),
+    ("LDAP_BOT_PORT", port . isoRead . packed),
+    ("LDAP_BOT_VERIFY_TOKEN", verifyToken),
+    ("LDAP_BOT_PAGE_TOKEN", pageToken),
+    ("LDAP_BOT_USERNAME", user),
+    ("LDAP_BOT_PASSWORD", password),
+    ("LDAP_BOT_USERS_CONTAINER", activeUsersContainer . isoDn),
+    ("LDAP_BOT_USERS_ORGUNITS", activeUsersOrgunits . isoNonEmpty . splitted),
+    ("LDAP_BOT_GROUPS_CONTAINER", projectGroupsContainer . isoDn),
+    ("LDAP_BOT_GROUPS_ORGUNITS", projectGroupsOrgunits . isoNonEmpty . splitted)
   ]
   where
     isoRead :: (Read a, Show a) => Iso' a String
