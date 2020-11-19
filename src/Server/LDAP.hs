@@ -1,37 +1,99 @@
 module Server.LDAP
-(
-  LdapEffect(..),
-  runLdap,
-  enrichCommand,
-  executeOperation,
-  groupKnowledge,
-  GroupKnowledge (..),
-) where
+  ( LdapEffect (..),
+    runLdap,
+    enrichCommand,
+    executeOperation,
+    groupKnowledge,
+    GroupKnowledge (..),
+  )
+where
 
-import           Control.Exception     hiding ( catch, throw )
-import           Control.Monad
-import           Polysemy
-import           Polysemy.Error
-import           Polysemy.Reader
-
+import Control.Exception (bracket_)
+import Control.Monad (liftM2, liftM3, when)
 import qualified Data.ByteString.Char8 as BS
-import           Data.List             hiding ( drop, group, head, isSuffixOf, unlines, unwords )
-import qualified Data.List.NonEmpty    as NE
-import           Data.Text             hiding ( any, concatMap, filter, group, head, map, null, tail )
-import           Prelude               hiding ( drop, unlines, unwords )
-
-import           Ldap.Client
-
-import           Env
-import           Server.Command
+import Data.List
+  ( nub,
+    sort,
+  )
+import qualified Data.List.NonEmpty as NE
+import Data.Text
+  ( Text,
+    drop,
+    dropEnd,
+    pack,
+    splitOn,
+    stripEnd,
+    unlines,
+    unpack,
+    unwords,
+  )
+import Env
+  ( Config
+      ( Config,
+        _activeUsersContainer,
+        _activeUsersOrgunits,
+        _ldapHost,
+        _ldapPort,
+        _password,
+        _projectGroupsContainer,
+        _projectGroupsOrgunits,
+        _user
+      ),
+  )
+import Ldap.Client
+  ( Attr (..),
+    AttrList,
+    AttrValue,
+    Dn (..),
+    Filter (And, Or, (:=)),
+    Host (Tls),
+    Ldap,
+    Mod,
+    NonEmpty,
+    Operation (Add, Delete),
+    Password (Password),
+    Scope (WholeSubtree),
+    Search,
+    SearchEntry (..),
+    bind,
+    insecureTlsSettings,
+    modify,
+    scope,
+    search,
+    with,
+  )
+import Polysemy
+  ( Embed,
+    InterpreterFor,
+    Member,
+    Sem,
+    embed,
+    interpret,
+    makeSem,
+  )
+import Polysemy.Error (Error, fromEither, mapError, throw)
+import Polysemy.Reader (Reader, ask)
+import Server.Command
+  ( Account,
+    Command (Append, List, Remove),
+    ConfirmedCommand (..),
+    Enriched,
+    EnrichedCommand,
+    Group,
+    Parsed,
+    ParsedCommand,
+    Value (Value),
+  )
+import Prelude hiding (drop, unlines, unwords)
 
 data LdapEffect m a where
   SearchLdap :: Dn -> Mod Search -> Filter -> [Attr] -> LdapEffect m [SearchEntry]
-  ModifyLdap :: Dn -> [Operation]-> LdapEffect m ()
+  ModifyLdap :: Dn -> [Operation] -> LdapEffect m ()
 
 makeSem ''LdapEffect
 
-data GroupKnowledge = Owner
+data GroupKnowledge
+  = Owner
   | Member
   | None
   deriving (Eq, Enum, Bounded, Show)
@@ -39,9 +101,9 @@ data GroupKnowledge = Owner
 groupKnowledge :: Enriched Account -> Enriched Group -> GroupKnowledge
 groupKnowledge (Value (SearchEntry accountDn _)) (Value (SearchEntry _ groupAttrList)) =
   case (accountDn `elem` managers groupAttrList, accountDn `elem` members groupAttrList) of
-    (True,  _)    -> Owner
+    (True, _) -> Owner
     (False, True) -> Member
-    _             -> None
+    _ -> None
 
 runLdap :: (Member (Error Text) r, Member (Embed IO) r, Member (Reader Config) r) => InterpreterFor LdapEffect r
 runLdap = interpret $ \case
@@ -68,34 +130,38 @@ enrichCommand command
 enrichAccount :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Account -> Sem r (Enriched Account)
 enrichAccount (Value account) = do
   Config {_activeUsersContainer, _activeUsersOrgunits} <- ask
-  validateObject _activeUsersOrgunits "User" =<< searchLdap
+  validateObject _activeUsersOrgunits "User"
+    =<< searchLdap
       _activeUsersContainer
       (scope WholeSubtree)
-      (
-        And $ NE.fromList [
-          Attr "objectClass" := "person",
-          Or $ NE.fromList [
-            Attr "cn" := BS.pack (unpack account),
-            Attr "sAMAccountName" := BS.pack (unpack account)
-          ]
-        ]
+      ( And $
+          NE.fromList
+            [ Attr "objectClass" := "person",
+              Or $
+                NE.fromList
+                  [ Attr "cn" := BS.pack (unpack account),
+                    Attr "sAMAccountName" := BS.pack (unpack account)
+                  ]
+            ]
       )
       [Attr "dn"]
 
 enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
 enrichGroup (Value group) = do
   Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
-  validateObject _projectGroupsOrgunits "Group" =<< searchLdap
+  validateObject _projectGroupsOrgunits "Group"
+    =<< searchLdap
       _projectGroupsContainer
       (scope WholeSubtree)
-      (
-        And $ NE.fromList [
-          Attr "objectClass" := "group",
-          Or $ NE.fromList [
-            Attr "cn" := BS.pack (unpack group),
-            Attr "mailNickname" := BS.pack (unpack group)
-          ]
-        ]
+      ( And $
+          NE.fromList
+            [ Attr "objectClass" := "group",
+              Or $
+                NE.fromList
+                  [ Attr "cn" := BS.pack (unpack group),
+                    Attr "mailNickname" := BS.pack (unpack group)
+                  ]
+            ]
       )
       [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 

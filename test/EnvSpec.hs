@@ -1,26 +1,29 @@
-module EnvSpec (
-  spec
-) where
+module EnvSpec
+  ( spec,
+  )
+where
 
-import           Test.Hspec
-import           Test.QuickCheck
-import           Test.QuickCheck.Arbitrary
-import           Test.QuickCheck.Instances.Text
-import           Test.QuickCheck.TH.Generators
-
-import           Control.Lens
-import           Control.Monad
-import           Polysemy
-import           Polysemy.Error
-
-import           Ldap.Client
-
-import           Data.Default
-import           Data.List.NonEmpty             ( NonEmpty (..), toList )
-import           Data.Text                      hiding ( head, map, tail )
-import           Prelude                        hiding ( unwords, words )
-
-import           Env
+import Control.Lens (view)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text (Text, filter, unpack, unwords)
+import Env (Config (..), Environment (..), readConfig, settings)
+import Ldap.Client (Dn (..), PortNumber)
+import Polysemy (InterpreterFor, Member, Sem, interpret, run)
+import Polysemy.Error (Error, runError)
+import Test.Hspec (Spec, describe, it)
+import Test.QuickCheck
+  ( Arbitrary (..),
+    Testable (property),
+    arbitrarySizedIntegral,
+    recursivelyShrink,
+    shrinkIntegral,
+    shuffle,
+    (===),
+  )
+import Test.QuickCheck.Arbitrary ()
+import Test.QuickCheck.Arbitrary.Generic (genericArbitrary, genericShrink)
+import Test.QuickCheck.Instances.Text ()
+import Prelude hiding (unwords, words)
 
 instance Arbitrary (NonEmpty Text) where
   arbitrary = (:|) <$> filtered <*> (return <$> filtered)
@@ -37,11 +40,9 @@ instance Arbitrary PortNumber where
   arbitrary = arbitrarySizedIntegral
   shrink = shrinkIntegral
 
-makeArbitrary ''Config
-
 instance Arbitrary Config where
-  arbitrary = arbitraryConfig
-  shrink = recursivelyShrink
+  arbitrary = genericArbitrary
+  shrink = genericShrink
 
 type EnvironmentMock = [(Text, Text)]
 
@@ -51,14 +52,15 @@ toEnvironmentMock config = map (\(name, lens) -> (name, view lens config)) setti
 spec :: Spec
 spec =
   describe "environment reading" $ do
-    it "reads config from complete environment" $ property $ \config ->
-      withMockedEnvironment (toEnvironmentMock config) readConfig === Right config
+    it "reads config from complete environment" $
+      property $ \config ->
+        withMockedEnvironment (toEnvironmentMock config) readConfig === Right config
 
-    it "fails to read a config from incomplete environment" $ property $ \config -> do
-      shuffled <- shuffle $ toEnvironmentMock config
-      let ((missingKey, _), incompleteMock) = (head shuffled, tail shuffled)
-      return $ withMockedEnvironment incompleteMock readConfig === Left (unwords ["Please set", missingKey, "environment variable."])
-
+    it "fails to read a config from incomplete environment" $
+      property $ \config -> do
+        shuffled <- shuffle $ toEnvironmentMock config
+        let ((missingKey, _), incompleteMock) = (head shuffled, tail shuffled)
+        return $ withMockedEnvironment incompleteMock readConfig === Left (unwords ["Please set", missingKey, "environment variable."])
 
 withMockedEnvironment :: EnvironmentMock -> Sem '[Environment, Error Text] a -> Either Text a
 withMockedEnvironment hash = run . runError . fakeEnvironment hash

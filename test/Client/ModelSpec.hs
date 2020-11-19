@@ -1,12 +1,15 @@
-module Client.ModelSpec (
-  spec
-) where
+module Client.ModelSpec
+  ( spec,
+  )
+where
 
-import           Test.Hspec
-
-import           Data.Aeson
-
-import           Client.Model
+import Client.Model
+  ( Base (Base),
+    SenderAction (TypingOff),
+    ServiceMessageRequest (ServiceMessageRequest),
+  )
+import Data.Aeson (encode)
+import Test.Hspec (Spec, describe, it, shouldBe)
 
 spec :: Spec
 spec =

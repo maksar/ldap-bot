@@ -1,27 +1,35 @@
-module Server.CommandSpec (
-  spec
-) where
+module Server.CommandSpec
+  ( spec,
+  )
+where
 
-import           Control.Monad
-import           Polysemy
-import           Polysemy.Error
-
-import           Data.Text
-
-import           Server.Command
-
-import           Test.Hspec
-import           Test.QuickCheck
-import           Test.QuickCheck.Instances.Text
-
-import           Ldap.Client
+import Data.Text (Text)
+import Ldap.Client (Dn (..), SearchEntry (..))
+import Polysemy (run)
+import Polysemy.Error (runError)
+import Server.Command
+  ( Account,
+    Command (Append, List, Remove),
+    Enriched,
+    Group,
+    ParsedCommand,
+    Value (Value),
+    commandFromInput,
+    deconstructCommand,
+  )
+import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import Test.QuickCheck (Arbitrary (arbitrary), Testable (property))
+import Test.QuickCheck.Instances.Text ()
 
 instance Arbitrary Dn where
   arbitrary = Dn <$> arbitrary
+
 instance Arbitrary SearchEntry where
   arbitrary = flip SearchEntry [] <$> arbitrary
+
 instance Arbitrary (Enriched Account) where
   arbitrary = Value <$> arbitrary
+
 instance Arbitrary (Enriched Group) where
   arbitrary = Value <$> arbitrary
 
@@ -44,15 +52,18 @@ spec = do
       parse "/list group with spaces" `shouldBe` Right (List (Value "a.requester") (Value "group with spaces"))
 
   describe "command deconstruction" $ do
-    it "deconstructs List command" $ property $ \(receiver, group) ->
+    it "deconstructs List command" $
+      property $ \(receiver, group) ->
         deconstructCommand (List receiver group) `shouldSatisfy` \(extractedReceiver, _ :: Enriched Account, extractedGroup) ->
           receiver == extractedReceiver && group == extractedGroup
 
-    it "deconstructs Append command" $ property $ \(receiver, account, group) ->
-      deconstructCommand (Append receiver account group) `shouldBe` (receiver, account, group)
+    it "deconstructs Append command" $
+      property $ \(receiver, account, group) ->
+        deconstructCommand (Append receiver account group) `shouldBe` (receiver, account, group)
 
-    it "deconstructs Remove command" $ property $ \(receiver, account, group) ->
-      deconstructCommand (Remove receiver account group) `shouldBe` (receiver, account, group)
+    it "deconstructs Remove command" $
+      property $ \(receiver, account, group) ->
+        deconstructCommand (Remove receiver account group) `shouldBe` (receiver, account, group)
 
 parse :: Text -> Either Text ParsedCommand
 parse = run . runError . commandFromInput "a.requester"

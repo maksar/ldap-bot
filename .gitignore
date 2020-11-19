@@ -1,4 +1,6 @@
 .stack-work/
-ldabot.cabal
-*~
-.env
+.env*
+!.env.example
+!.envrc
+dist-newstyle
+.direnv

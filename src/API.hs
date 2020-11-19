@@ -1,11 +1,11 @@
-module API (
-  RequiredParam,
-  AccessTokenParam
-) where
+module API
+  ( RequiredParam,
+    AccessTokenParam,
+  )
+where
 
-import           Servant
-
-import           Data.Text
+import Data.Text (Text)
+import Servant (QueryParam', Required, Strict)
 
 type RequiredParam = QueryParam' '[Strict, Required]
 
