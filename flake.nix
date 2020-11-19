@@ -25,7 +25,7 @@
             };
             index-state = "2020-11-19T00:00:00Z";
             plan-sha256 = "08256pxhqb5rgxh605kxb4d8vpqvnvva8r7j5584hrblj9zrgnx0";
-            materialized = ./materialized;
+            materialized = ./materialized/project;
           };
         in
         rec {
@@ -38,8 +38,24 @@
 
           devShell = project.shellFor {
             tools = {
-              cabal-install = "3.2.0.0";
-              haskell-language-server = "0.6.0";
+              cabal-install = {
+                version = "3.2.0.0";
+                index-state = "2020-11-19T00:00:00Z";
+                plan-sha256 = "1kcgyw40svk41liwsa7xwx04alfsf68i54w8vghr63gr5ccggzgi";
+                materialized = ./materialized/cabal-install;
+              };
+              haskell-language-server = {
+                version = "0.6.0";
+                index-state = "2020-11-19T00:00:00Z";
+                plan-sha256 = "1symglyngily0k99gyr594aibkl4v5rd4k3qzv24ri9qmc49z27v";
+                materialized = ./materialized/haskell-language-server;
+              };
+              hoogle = {
+                version = "5.0.17.15";
+                index-state = "2020-11-19T00:00:00Z";
+                plan-sha256 = "1slrp7dm1fnl9sp1hiby5ncah8x52k7hz1mc4sa619i0hl9nhfq8";
+                materialized = ./materialized/hoogle;
+              };
             };
           };
         }
