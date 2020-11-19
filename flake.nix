@@ -12,7 +12,7 @@
   };
 
   outputs = { self, flake-utils, haskell-nix }:
-    flake-utils.lib.eachDefaultSystem
+    flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ]
       (system:
         with haskell-nix.legacyPackages.${system};
         let
