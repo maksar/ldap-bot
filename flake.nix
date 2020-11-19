@@ -23,6 +23,9 @@
               name = "sources";
               src = ./.;
             };
+            index-state = "2020-11-19T00:00:00Z";
+            plan-sha256 = "08256pxhqb5rgxh605kxb4d8vpqvnvva8r7j5584hrblj9zrgnx0";
+            materialized = ./materialized;
           };
         in
         rec {
