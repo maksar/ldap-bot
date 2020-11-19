@@ -26,7 +26,7 @@ bot = do
   config@Config {_port} <- readConfig
 
   embed $ do
-    putStrLn $ "Ldabot is listening on port " ++ show _port
+    putStrLn $ "Ldap-bot is listening on port " ++ show _port
     runSettings (setPort _port defaultSettings) $ logStdoutDev $ app config
 
 runBot :: Sem '[Environment, Error Text, Embed IO] a -> IO (Either Text a)
