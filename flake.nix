@@ -6,12 +6,21 @@
       url = "github:numtide/flake-utils";
     };
 
+    nixpkgs = {
+      url = "github:NixOS/nixpkgs/master";
+    };
+
     haskell-nix = {
-      url = "github:input-output-hk/haskell.nix";
+      url = "github:hackworthltd/haskell.nix/flake-fixes";
+      inputs = {
+        nixpkgs = {
+          follows = "nixpkgs";
+        };
+      };
     };
   };
 
-  outputs = { self, flake-utils, haskell-nix }:
+  outputs = { self, flake-utils, nixpkgs, haskell-nix }:
     flake-utils.lib.eachSystem (builtins.attrNames haskell-nix.legacyPackages)
       (system:
         with haskell-nix.legacyPackages.${system};
