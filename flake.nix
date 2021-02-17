@@ -43,7 +43,12 @@
             program = "${defaultPackage}/bin/ldap-bot-facebook";
           };
 
-          defaultPackage = project.ldap-bot.components.exes.ldap-bot-facebook;
+          packages = {
+            facebook = project.ldap-bot.components.exes.ldap-bot-facebook;
+            console = project.ldap-bot.components.exes.ldap-bot-console;
+          };
+
+          defaultPackage = packages.facebook;
 
           devShell = project.shellFor {
             tools = {
