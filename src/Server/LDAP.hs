@@ -49,7 +49,6 @@ import Ldap.Client
     Host (Tls),
     Ldap,
     Mod,
-    NonEmpty,
     Operation (Add, Delete),
     Password (Password),
     Scope (WholeSubtree),
@@ -123,14 +122,14 @@ withLdap operation = do
 
 enrichCommand :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => ParsedCommand -> Sem r EnrichedCommand
 enrichCommand command
-  | (Append requester account group) <- command = liftM3 Append (enrichAccount requester) (enrichAccount account) (enrichGroup group)
-  | (Remove requester account group) <- command = liftM3 Remove (enrichAccount requester) (enrichAccount account) (enrichGroup group)
-  | (List requester group) <- command = liftM2 List (enrichAccount requester) (enrichGroup group)
+  | (Append requester account group) <- command = liftM3 Append (enrichAccount requester) (enrichAccount account) (enrichGroupForModification group)
+  | (Remove requester account group) <- command = liftM3 Remove (enrichAccount requester) (enrichAccount account) (enrichGroupForModification group)
+  | (List requester group) <- command = liftM2 List (enrichAccount requester) (enrichGroupForListing group)
 
 enrichAccount :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Account -> Sem r (Enriched Account)
 enrichAccount (Value account) = do
   Config {_activeUsersContainer, _activeUsersOrgunits} <- ask
-  validateObject _activeUsersOrgunits "User"
+  validateObject (`elem` _activeUsersOrgunits) "User"
     =<< searchLdap
       _activeUsersContainer
       (scope WholeSubtree)
@@ -146,10 +145,18 @@ enrichAccount (Value account) = do
       )
       [Attr "dn"]
 
-enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
-enrichGroup (Value group) = do
-  Config {_projectGroupsContainer, _projectGroupsOrgunits} <- ask
-  validateObject _projectGroupsOrgunits "Group"
+enrichGroupForListing :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
+enrichGroupForListing = enrichGroup (const True)
+
+enrichGroupForModification :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => Parsed Group -> Sem r (Enriched Group)
+enrichGroupForModification group = do
+  Config {_projectGroupsOrgunits} <- ask
+  enrichGroup (`elem` _projectGroupsOrgunits) group
+
+enrichGroup :: (Member (Reader Config) r, Member (Error Text) r, Member LdapEffect r) => (Text -> Bool) -> Parsed Group -> Sem r (Enriched Group)
+enrichGroup orgunitsCheck (Value group) = do
+  Config {_projectGroupsContainer} <- ask
+  validateObject orgunitsCheck "Group"
     =<< searchLdap
       _projectGroupsContainer
       (scope WholeSubtree)
@@ -165,13 +172,13 @@ enrichGroup (Value group) = do
       )
       [Attr "managedBy", Attr "msExchCoManagedByLink", Attr "member", Attr "cn"]
 
-validateObject :: Member (Error Text) r => NonEmpty Text -> Text -> [SearchEntry] -> Sem r (Enriched b)
-validateObject orgunits object list = do
+validateObject :: Member (Error Text) r => (Text -> Bool) -> Text -> [SearchEntry] -> Sem r (Enriched b)
+validateObject orgunitsCheck object list = do
   when (null list) $ throw $ unwords [object, "was not found."]
 
   let entry@(SearchEntry (Dn dn) _) = head list
 
-  if head (tail $ splitOn ",OU=" dn) `elem` orgunits
+  if orgunitsCheck $ head (tail $ splitOn ",OU=" dn)
     then return $ Value entry
     else throw $ unwords [object, "cannot be managed."]
 

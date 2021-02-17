@@ -63,7 +63,8 @@ data Config = Config
     _activeUsersContainer :: Dn,
     _activeUsersOrgunits :: NonEmpty Text,
     _projectGroupsContainer :: Dn,
-    _projectGroupsOrgunits :: NonEmpty Text
+    _projectGroupsOrgunits :: NonEmpty Text,
+    _terminalUsername :: Text
   }
   deriving (Eq, Show, Generic, Default)
 
@@ -86,7 +87,8 @@ settings =
     ("LDAP_BOT_USERS_CONTAINER", activeUsersContainer . isoDn),
     ("LDAP_BOT_USERS_ORGUNITS", activeUsersOrgunits . isoNonEmpty . splitted),
     ("LDAP_BOT_GROUPS_CONTAINER", projectGroupsContainer . isoDn),
-    ("LDAP_BOT_GROUPS_ORGUNITS", projectGroupsOrgunits . isoNonEmpty . splitted)
+    ("LDAP_BOT_GROUPS_ORGUNITS", projectGroupsOrgunits . isoNonEmpty . splitted),
+    ("LDAP_BOT_TERMINAL_USERNAME", terminalUsername)
   ]
   where
     isoRead :: (Read a, Show a) => Iso' a String

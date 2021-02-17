@@ -35,12 +35,14 @@
         "attoparsec-iso8601".revision = (((hackage."attoparsec-iso8601")."1.0.1.0").revisions).default;
         "attoparsec-iso8601".flags.fast = false;
         "attoparsec-iso8601".flags.developer = false;
+        "pretty-terminal".revision = (((hackage."pretty-terminal")."0.1.0.0").revisions).default;
         "ghc-prim".revision = (((hackage."ghc-prim")."0.6.1").revisions).default;
         "utf8-string".revision = (((hackage."utf8-string")."1.0.1.1").revisions).default;
         "old-time".revision = (((hackage."old-time")."1.1.0.3").revisions).default;
         "bifunctors".revision = (((hackage."bifunctors")."5.5.7").revisions).default;
         "bifunctors".flags.semigroups = true;
         "bifunctors".flags.tagged = true;
+        "haskeline".revision = (((hackage."haskeline")."0.8.0.1").revisions).default;
         "x509-validation".revision = (((hackage."x509-validation")."1.6.11").revisions).default;
         "fail".revision = (((hackage."fail")."4.9.0.0").revisions).default;
         "data-fix".revision = (((hackage."data-fix")."0.3.0").revisions).default;
@@ -333,6 +335,7 @@
           "binary" = "0.8.8.0";
           "ghc-boot" = "8.10.2";
           "ghc-prim" = "0.6.1";
+          "haskeline" = "0.8.0.1";
           "stm" = "2.5.0.0";
           "unix" = "2.7.2.2";
           "ghc-heap" = "8.10.2";

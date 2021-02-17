@@ -20,7 +20,7 @@ import Client.Model
     HelpMessageRequest (HelpMessageRequest),
     SendTextMessage (SendTextMessage),
     SendTextMessageRequest (SendTextMessageRequest),
-    SendTextMessageResponse,
+    SendTextMessageResponse (..),
     SenderAction (MarkSeen, TypingOff, TypingOn),
     ServiceMessageRequest (ServiceMessageRequest),
   )

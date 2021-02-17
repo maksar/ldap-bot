@@ -20,7 +20,7 @@ import Servant
     type (:<|>) (..),
     type (:>),
   )
-import Server.Hook (webhookMessage)
+import Server.Hook (interpretFacebookMessages)
 import Server.Model (Messages)
 import Server.Verify (webhookVerify)
 
@@ -29,4 +29,4 @@ type WebHookAPI =
     :<|> ReqBody '[JSON] Messages :> Post '[JSON] (NonEmpty (Either Text SendTextMessageResponse))
 
 app :: Config -> Application
-app config = serve (Proxy :: Proxy WebHookAPI) $ webhookVerify config :<|> webhookMessage config
+app config = serve (Proxy :: Proxy WebHookAPI) $ webhookVerify config :<|> interpretFacebookMessages config

@@ -33,20 +33,32 @@
               src = ./.;
             };
             index-state = "2020-11-19T00:00:00Z";
-            plan-sha256 = "172yx82pjs5pzgxc9mc3a1q4p4zfajv3m7hwxg7nkvqrzici7k0w";
+            plan-sha256 = "165f82bgvn70drlqn2zdrj2zrapg0nnxmm3r86chz5aamksc75al";
             materialized = ./materialized/ldap-bot;
           };
         in
         rec {
           defaultApp = {
             type = "app";
-            program = "${defaultPackage}/bin/ldap-bot-exe";
+            program = "${defaultPackage}/bin/ldap-bot-facebook";
           };
 
-          defaultPackage = project.ldap-bot.components.exes.ldap-bot-exe;
+          defaultPackage = project.ldap-bot.components.exes.ldap-bot-facebook;
 
           devShell = project.shellFor {
             tools = {
+              ormolu = {
+                 version = "0.1.4.1";
+                index-state = "2021-01-03T00:00:00Z";
+                plan-sha256 = "1al44yikrb1aa4cnmd0g3vz31w6z29h684j78gk0m00qhkpzj71d";
+                materialized = ./materialized/ormolu;
+              };
+              hlint = {
+                version = "3.2.6";
+                index-state = "2021-01-03T00:00:00Z";
+                plan-sha256 = "1rh3vz14wr87ccbq1qrq4kb7mbkcmzn2l2xbrk2y8g1a3dz06i38";
+                materialized = ./materialized/hlint;
+              };
               cabal-install = {
                 version = "3.2.0.0";
                 index-state = "2020-11-19T00:00:00Z";

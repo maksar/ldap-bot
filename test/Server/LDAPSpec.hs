@@ -116,6 +116,17 @@ spec =
               Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit,OU=groups,OU=company") [])))
             )
 
+        it "succeeds when there is a requester and a group, but group is in another orgunit" $
+          test
+            (makeUsers [("a.requester", "active")])
+            (makeGroups [("group", "orgunit_another")])
+            (enrichCommand command)
+            ( [ "Searching in OU=users,OU=company with filter objectClass=person and (cn=a.requester or sAMAccountName=a.requester) and attributes (dn)",
+                "Searching in OU=groups,OU=company with filter objectClass=group and (cn=group or mailNickname=group) and attributes (managedBy, msExchCoManagedByLink, member, cn)"
+              ],
+              Right (List (Value (SearchEntry (Dn "CN=a.requester,OU=active,OU=users,OU=company") [])) (Value (SearchEntry (Dn "CN=group,OU=orgunit_another,OU=groups,OU=company") [])))
+            )
+
       forM_
         [ ("Append", Append, Append),
           ("Remove", Remove, Remove)

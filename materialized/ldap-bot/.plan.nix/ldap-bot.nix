@@ -72,32 +72,29 @@
         hsSourceDirs = [ "src" ];
         };
       exes = {
-        "ldap-bot-exe" = {
+        "ldap-bot-console" = {
           depends = [
-            (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
-            (hsPkgs."aeson-qq" or (errorHandler.buildDepError "aeson-qq"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
-            (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
-            (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
-            (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
-            (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
-            (hsPkgs."http-client-tls" or (errorHandler.buildDepError "http-client-tls"))
+            (hsPkgs."haskeline" or (errorHandler.buildDepError "haskeline"))
+            (hsPkgs."pretty-terminal" or (errorHandler.buildDepError "pretty-terminal"))
             (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
-            (hsPkgs."ldap-client" or (errorHandler.buildDepError "ldap-client"))
-            (hsPkgs."lens" or (errorHandler.buildDepError "lens"))
-            (hsPkgs."neat-interpolation" or (errorHandler.buildDepError "neat-interpolation"))
-            (hsPkgs."polysemy" or (errorHandler.buildDepError "polysemy"))
-            (hsPkgs."polysemy-plugin" or (errorHandler.buildDepError "polysemy-plugin"))
-            (hsPkgs."servant-client" or (errorHandler.buildDepError "servant-client"))
-            (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
             (hsPkgs."text" or (errorHandler.buildDepError "text"))
-            (hsPkgs."wai-extra" or (errorHandler.buildDepError "wai-extra"))
-            (hsPkgs."warp" or (errorHandler.buildDepError "warp"))
             (hsPkgs."with-utf8" or (errorHandler.buildDepError "with-utf8"))
             ];
           buildable = true;
           hsSourceDirs = [ "app" ];
-          mainPath = [ "Main.hs" ];
+          mainPath = [ "Console.hs" ];
+          };
+        "ldap-bot-facebook" = {
+          depends = [
+            (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
+            (hsPkgs."text" or (errorHandler.buildDepError "text"))
+            (hsPkgs."with-utf8" or (errorHandler.buildDepError "with-utf8"))
+            ];
+          buildable = true;
+          hsSourceDirs = [ "app" ];
+          mainPath = [ "Facebook.hs" ];
           };
         };
       tests = {
@@ -105,29 +102,20 @@
           depends = [
             (hsPkgs."QuickCheck" or (errorHandler.buildDepError "QuickCheck"))
             (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
-            (hsPkgs."aeson-qq" or (errorHandler.buildDepError "aeson-qq"))
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
             (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
-            (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
             (hsPkgs."data-default" or (errorHandler.buildDepError "data-default"))
             (hsPkgs."generic-arbitrary" or (errorHandler.buildDepError "generic-arbitrary"))
             (hsPkgs."hspec" or (errorHandler.buildDepError "hspec"))
-            (hsPkgs."http-client" or (errorHandler.buildDepError "http-client"))
-            (hsPkgs."http-client-tls" or (errorHandler.buildDepError "http-client-tls"))
             (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
             (hsPkgs."ldap-client" or (errorHandler.buildDepError "ldap-client"))
             (hsPkgs."lens" or (errorHandler.buildDepError "lens"))
             (hsPkgs."neat-interpolation" or (errorHandler.buildDepError "neat-interpolation"))
             (hsPkgs."polysemy" or (errorHandler.buildDepError "polysemy"))
-            (hsPkgs."polysemy-plugin" or (errorHandler.buildDepError "polysemy-plugin"))
             (hsPkgs."quickcheck-instances" or (errorHandler.buildDepError "quickcheck-instances"))
-            (hsPkgs."servant-client" or (errorHandler.buildDepError "servant-client"))
             (hsPkgs."servant-server" or (errorHandler.buildDepError "servant-server"))
             (hsPkgs."silently" or (errorHandler.buildDepError "silently"))
             (hsPkgs."text" or (errorHandler.buildDepError "text"))
-            (hsPkgs."wai-extra" or (errorHandler.buildDepError "wai-extra"))
-            (hsPkgs."warp" or (errorHandler.buildDepError "warp"))
-            (hsPkgs."with-utf8" or (errorHandler.buildDepError "with-utf8"))
             ];
           buildable = true;
           modules = [
