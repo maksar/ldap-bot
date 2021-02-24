@@ -44,7 +44,7 @@ import Polysemy.Resource (Resource, bracket)
 import Polysemy.Trace (Trace, trace)
 import Servant.Client (ClientM, runClientM)
 import Server.Model (Message (..))
-import Server.Registry (Registry, registryProgram)
+import Server.Registry (Registry, modifyGroup)
 import Prelude hiding (takeWhile)
 
 data FacebookEffect m a where
@@ -52,11 +52,10 @@ data FacebookEffect m a where
   GetInfo :: Text -> FacebookEffect m GetUserInfoMessageResponse
   ServiceMessage :: ServiceMessageRequest -> FacebookEffect m SendTextMessageResponse
   SendHelp :: HelpMessageRequest -> FacebookEffect m SendTextMessageResponse
-  ModifyGroup :: Text -> Text -> FacebookEffect m Text
 
 makeSem ''FacebookEffect
 
-facebookProgram :: (Member Resource r, Member FacebookEffect r, Member (Error Text) r) => Message -> Sem r SendTextMessageResponse
+facebookProgram :: (Member Registry r, Member Resource r, Member FacebookEffect r, Member (Error Text) r) => Message -> Sem r SendTextMessageResponse
 facebookProgram Message {sender, text} = do
   bracket
     (serviceMessage $ ServiceMessageRequest (Base sender) TypingOn)
@@ -71,9 +70,6 @@ facebookProgram Message {sender, text} = do
 
 logFacebook :: (Member FacebookEffect r, Member Trace r) => Sem r a -> Sem r a
 logFacebook = intercept $ \case
-  ModifyGroup input email -> do
-    trace $ unwords ["Executing request", unpack input, "by", unpack email]
-    modifyGroup input email
   SendText message -> do
     trace $ unwords ["Sending text message", show message]
     sendText message
@@ -89,7 +85,6 @@ logFacebook = intercept $ \case
 
 runFacebook :: (Member Registry r, Member (Error Text) r, Member (Embed IO) r, Member (Reader Config) r) => InterpreterFor FacebookEffect r
 runFacebook = interpret $ \case
-  ModifyGroup input email -> registryProgram input email
   SendText message -> send tlsManagerSettings $ sendTextMessage_ message
   GetInfo account -> send tlsManagerSettings $ getUserInfo_ account "email"
   ServiceMessage message -> send tlsManagerSettings $ sendServiceMessage_ message

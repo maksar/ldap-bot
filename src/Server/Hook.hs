@@ -23,7 +23,7 @@ import Polysemy.Trace (Trace, traceToIO)
 import Servant (Handler)
 import Server.LDAP (LdapEffect, runLdap)
 import Server.Model (Messages (Messages))
-import Server.Registry (Registry, registryProgram, runRegistry)
+import Server.Registry (modifyGroup, Registry, runRegistry)
 import Prelude
 
 interpretFacebookMessages :: Config -> Messages -> Handler (NonEmpty (Either Text SendTextMessageResponse))
@@ -33,7 +33,7 @@ interpretWithFacebook :: Config -> Sem '[FacebookEffect, Registry, LdapEffect, R
 interpretWithFacebook config = interpret config . runFacebook . logFacebook
 
 interpretSingleMessage :: Config -> Text -> IO (Either Text Text)
-interpretSingleMessage config@Config {_terminalUsername} input = liftIO $ interpret config (registryProgram input _terminalUsername)
+interpretSingleMessage config@Config {_terminalUsername} input = liftIO $ interpret config (modifyGroup input _terminalUsername)
 
 interpret :: Config -> Sem '[Registry, LdapEffect, Reader Config, Error Text, Resource, Trace, Embed IO] a -> IO (Either Text a)
 interpret config = runM . traceToIO . runResource . runError . runReader config . runLdap . runRegistry
