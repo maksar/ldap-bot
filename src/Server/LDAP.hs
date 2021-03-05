@@ -9,6 +9,7 @@ module Server.LDAP
 where
 
 import Control.Exception (bracket_)
+import Control.Exception.Base (catch)
 import Control.Monad (liftM2, liftM3, when)
 import qualified Data.ByteString.Char8 as BS
 import Data.List
@@ -48,6 +49,7 @@ import Ldap.Client
     Filter (And, Or, (:=)),
     Host (Tls),
     Ldap,
+    LdapError (..),
     Mod,
     Operation (Add, Delete),
     Password (Password),
@@ -113,7 +115,8 @@ withLdap :: (Member (Embed IO) r, Member (Reader Config) r, Member (Error Text) 
 withLdap operation = do
   Config {_ldapHost, _ldapPort, _user, _password} <- ask
 
-  result <- embed $ with (tls _ldapHost) _ldapPort $ prepend operation (\ldap -> login ldap _user _password)
+  result <- embed $ do
+    with (tls _ldapHost) _ldapPort (prepend operation (\ldap -> login ldap _user _password)) `catch` (pure . Left . IOError)
   mapError (const "Unable to perform Active Directory request.") $ fromEither result
   where
     login ldap user password = bind ldap (Dn user) $ Password $ BS.pack $ unpack password
