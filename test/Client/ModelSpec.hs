@@ -15,4 +15,4 @@ spec :: Spec
 spec =
   describe "Model spec" $
     it "serializes properly" $
-      encode (ServiceMessageRequest (Base "test") TypingOff) `shouldBe` "{\"sender_action\":\"typing_off\",\"recipient\":{\"id\":\"test\"}}"
+      encode (ServiceMessageRequest (Base "test") TypingOff) `shouldBe` "{\"recipient\":{\"id\":\"test\"},\"sender_action\":\"typing_off\"}"

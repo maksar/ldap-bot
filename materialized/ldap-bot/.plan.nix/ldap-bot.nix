@@ -24,7 +24,7 @@
       isLocal = true;
       detailLevel = "FullDetails";
       licenseFiles = [];
-      dataDir = "";
+      dataDir = ".";
       dataFiles = [];
       extraSrcFiles = [];
       extraTmpFiles = [];
@@ -75,6 +75,7 @@
         "ldap-bot-console" = {
           depends = [
             (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."directory" or (errorHandler.buildDepError "directory"))
             (hsPkgs."haskeline" or (errorHandler.buildDepError "haskeline"))
             (hsPkgs."pretty-terminal" or (errorHandler.buildDepError "pretty-terminal"))
             (hsPkgs."ldap-bot" or (errorHandler.buildDepError "ldap-bot"))
